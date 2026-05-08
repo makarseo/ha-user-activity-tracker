@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "User Activity Tracker",
+        "description": "Track manual interactions with switches, lights, buttons, etc. Stored in a separate SQLite database. No options to configure."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only a single instance is allowed."
+    }
+  }
+}
