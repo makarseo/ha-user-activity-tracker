@@ -11,36 +11,37 @@ from typing import Any, Iterable
 
 _LOGGER = logging.getLogger(__name__)
 
-SCHEMA = """
+# Base table (used both for fresh install and as a no-op on upgrade)
+BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts                 INTEGER NOT NULL,
-    domain             TEXT    NOT NULL,
-    entity_id          TEXT    NOT NULL,
-    service            TEXT,
-    user_id            TEXT,
-    user_name          TEXT,
-    source             TEXT    NOT NULL,
-    context_id         TEXT,
-    parent_id          TEXT,
-    trigger_type       TEXT,                        -- user | automation | script | system
-    trigger_entity_id  TEXT,                        -- e.g. automation.morning_routine
-    extra              TEXT
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    domain      TEXT    NOT NULL,
+    entity_id   TEXT    NOT NULL,
+    service     TEXT,
+    user_id     TEXT,
+    user_name   TEXT,
+    source      TEXT    NOT NULL,
+    context_id  TEXT,
+    parent_id   TEXT,
+    extra       TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_events_ts            ON events(ts);
-CREATE INDEX IF NOT EXISTS idx_events_entity        ON events(entity_id);
-CREATE INDEX IF NOT EXISTS idx_events_user          ON events(user_id);
-CREATE INDEX IF NOT EXISTS idx_events_domain        ON events(domain);
-CREATE INDEX IF NOT EXISTS idx_events_trigger_type  ON events(trigger_type);
-CREATE INDEX IF NOT EXISTS idx_events_trigger_eid   ON events(trigger_entity_id);
 """
 
-# Schema migrations for upgrades from v0.1.x → v0.1.3
-MIGRATIONS = [
+# Idempotent column additions (runs each startup, fails silently if already applied)
+COLUMN_MIGRATIONS = [
     "ALTER TABLE events ADD COLUMN trigger_type TEXT",
     "ALTER TABLE events ADD COLUMN trigger_entity_id TEXT",
+]
+
+# Indices — created AFTER columns are guaranteed to exist
+INDEX_MIGRATIONS = [
+    "CREATE INDEX IF NOT EXISTS idx_events_ts           ON events(ts)",
+    "CREATE INDEX IF NOT EXISTS idx_events_entity       ON events(entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_events_user         ON events(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_events_domain       ON events(domain)",
     "CREATE INDEX IF NOT EXISTS idx_events_trigger_type ON events(trigger_type)",
-    "CREATE INDEX IF NOT EXISTS idx_events_trigger_eid ON events(trigger_entity_id)",
+    "CREATE INDEX IF NOT EXISTS idx_events_trigger_eid  ON events(trigger_entity_id)",
 ]
 
 
@@ -90,12 +91,21 @@ class ActivityStore:
 
     def _init_schema(self) -> None:
         with self._conn() as c:
-            c.executescript(SCHEMA)
-            for stmt in MIGRATIONS:
+            # 1. Base table (no-op if already exists)
+            c.executescript(BASE_SCHEMA)
+            # 2. Add new columns idempotently
+            for stmt in COLUMN_MIGRATIONS:
                 try:
                     c.execute(stmt)
-                except sqlite3.OperationalError:
-                    pass  # already applied
+                except sqlite3.OperationalError as err:
+                    if "duplicate column name" not in str(err).lower():
+                        _LOGGER.warning("Migration failed: %s — %s", stmt, err)
+            # 3. Create indices (now safe — all columns guaranteed)
+            for stmt in INDEX_MIGRATIONS:
+                try:
+                    c.execute(stmt)
+                except sqlite3.OperationalError as err:
+                    _LOGGER.warning("Index creation failed: %s — %s", stmt, err)
 
     async def async_log(self, row: dict[str, Any]) -> None:
         await self.hass.async_add_executor_job(self._insert, row)
