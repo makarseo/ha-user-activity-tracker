@@ -1,93 +1,107 @@
 /**
  * Custom panel: User Activity Tracker
- * v0.1.2 — vibrant palette + i18n (en/uk/ru)
+ * v0.1.3 — tabs, sortable tables, automation attribution
  */
 
 const I18N = {
   en: {
     title: "User Activity Tracker",
+    tab_all: "All", tab_users: "Users", tab_auto: "Automations",
     p_24h: "last 24h", p_7d: "last 7 days", p_14d: "last 14 days",
     p_30d: "last 30 days", p_90d: "last 90 days", p_year: "last year",
     today: "events today", week: "last 7 days", month: "last 30 days",
     unique_entities: "unique entities", unique_users: "unique users",
-    avg_day: "avg / day",
+    unique_triggers: "unique automations", avg_day: "avg / day",
     activity_over_time: "Activity over time",
-    by_domain: "By domain",
-    heatmap_title: "When you actually use HA — hour × weekday",
+    by_domain: "By domain", by_trigger: "Trigger types",
+    heatmap_title: "Hour × weekday heatmap",
     top_entities: "Top entities", top_users: "Top users",
-    top_services: "Top services", most_recent: "Most recent",
+    top_services: "Top services", top_automations: "Top automations",
+    most_recent: "Most recent",
     recent_events: "Recent events (last 200)",
     th_time: "Time", th_user: "User", th_entity: "Entity",
-    th_service: "Service", th_source: "Source",
+    th_service: "Service", th_source: "Source", th_trigger: "Trigger",
     by_user: "by", at_time: "at",
     no_data_short: "No data yet.",
     no_data_long: "No data yet — keep using HA, refresh in a minute.",
     no_data_heatmap: "No data yet — needs more events to build the heatmap.",
     no_events: "No events recorded yet.",
     loading: "Loading…", error: "Error:",
+    trigger_user: "User", trigger_automation: "Automation",
+    trigger_script: "Script", trigger_system: "System",
     dow: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    sort_hint: "Click headers to sort",
   },
   ru: {
     title: "Трекер активности пользователей",
+    tab_all: "Общие", tab_users: "Пользователи", tab_auto: "Автоматизации",
     p_24h: "за 24ч", p_7d: "за 7 дней", p_14d: "за 14 дней",
     p_30d: "за 30 дней", p_90d: "за 90 дней", p_year: "за год",
     today: "событий сегодня", week: "за 7 дней", month: "за 30 дней",
     unique_entities: "уникальных entities", unique_users: "уникальных юзеров",
-    avg_day: "среднее / день",
+    unique_triggers: "уникальных автоматизаций", avg_day: "среднее / день",
     activity_over_time: "Активность во времени",
-    by_domain: "По доменам",
-    heatmap_title: "Когда ты реально пользуешься HA — час × день недели",
+    by_domain: "По доменам", by_trigger: "Источники",
+    heatmap_title: "Тепловая карта: час × день недели",
     top_entities: "Топ entities", top_users: "Топ пользователей",
-    top_services: "Топ сервисов", most_recent: "Последнее",
+    top_services: "Топ сервисов", top_automations: "Топ автоматизаций",
+    most_recent: "Последнее",
     recent_events: "Последние события (200)",
     th_time: "Время", th_user: "Юзер", th_entity: "Entity",
-    th_service: "Сервис", th_source: "Источник",
+    th_service: "Сервис", th_source: "Источник", th_trigger: "Триггер",
     by_user: "от", at_time: "в",
     no_data_short: "Пока нет данных.",
     no_data_long: "Данных нет — потыкай в HA и обнови через минуту.",
     no_data_heatmap: "Данных мало — heatmap появится после нескольких событий.",
     no_events: "Событий ещё не записано.",
     loading: "Загрузка…", error: "Ошибка:",
+    trigger_user: "Пользователь", trigger_automation: "Автоматизация",
+    trigger_script: "Скрипт", trigger_system: "Система",
     dow: ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"],
+    sort_hint: "Клик по заголовку — сортировка",
   },
   uk: {
     title: "Трекер активності користувачів",
+    tab_all: "Загальне", tab_users: "Користувачі", tab_auto: "Автоматизації",
     p_24h: "за 24г", p_7d: "за 7 днів", p_14d: "за 14 днів",
     p_30d: "за 30 днів", p_90d: "за 90 днів", p_year: "за рік",
     today: "подій сьогодні", week: "за 7 днів", month: "за 30 днів",
     unique_entities: "унікальних entities", unique_users: "унікальних юзерів",
-    avg_day: "середньо / день",
+    unique_triggers: "унікальних автоматизацій", avg_day: "середньо / день",
     activity_over_time: "Активність у часі",
-    by_domain: "За доменами",
-    heatmap_title: "Коли ти реально користуєшся HA — година × день тижня",
+    by_domain: "За доменами", by_trigger: "Джерела",
+    heatmap_title: "Теплова карта: година × день тижня",
     top_entities: "Топ entities", top_users: "Топ користувачів",
-    top_services: "Топ сервісів", most_recent: "Останнє",
+    top_services: "Топ сервісів", top_automations: "Топ автоматизацій",
+    most_recent: "Останнє",
     recent_events: "Останні події (200)",
     th_time: "Час", th_user: "Юзер", th_entity: "Entity",
-    th_service: "Сервіс", th_source: "Джерело",
+    th_service: "Сервіс", th_source: "Джерело", th_trigger: "Тригер",
     by_user: "від", at_time: "о",
     no_data_short: "Поки немає даних.",
     no_data_long: "Даних немає — потицяй у HA та онови за хвилину.",
     no_data_heatmap: "Даних мало — heatmap з'явиться після кількох подій.",
     no_events: "Подій ще не записано.",
     loading: "Завантаження…", error: "Помилка:",
+    trigger_user: "Користувач", trigger_automation: "Автоматизація",
+    trigger_script: "Скрипт", trigger_system: "Система",
     dow: ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"],
+    sort_hint: "Клік по заголовку — сортування",
   },
 };
 
-// Vibrant palette — works on both light and dark themes
-const PALETTE = [
-  "#ff6b6b", "#fab005", "#40c057", "#4dabf7", "#9775fa",
-  "#f06595", "#20c997", "#fd7e14", "#15aabf", "#e64980",
-];
+const PALETTE = ["#ff6b6b", "#fab005", "#40c057", "#4dabf7", "#9775fa", "#f06595", "#20c997", "#fd7e14", "#15aabf", "#e64980"];
 const HEAT = ["transparent", "#c3fae8", "#69db7c", "#fab005", "#fd7e14", "#fa5252"];
 const ACCENTS = {
-  today: "#ff6b6b",
-  week: "#4dabf7",
-  month: "#9775fa",
-  ent: "#20c997",
-  usr: "#fab005",
-  avg: "#f06595",
+  today: "#ff6b6b", week: "#4dabf7", month: "#9775fa",
+  ent: "#20c997", usr: "#fab005", avg: "#f06595",
+  trig: "#15aabf",
+};
+const TRIGGER_COLORS = {
+  user: "#4dabf7",
+  automation: "#9775fa",
+  script: "#f06595",
+  system: "#868e96",
 };
 
 class UserActivityPanel extends HTMLElement {
@@ -99,6 +113,9 @@ class UserActivityPanel extends HTMLElement {
     if (!this._initialized) {
       this._initialized = true;
       this._days = 14;
+      this._tab = "all"; // 'all' | 'user' | 'automation'
+      this._sortBy = "ts";
+      this._sortDir = "desc";
       this._render();
       this._fetch();
       this._timer = setInterval(() => this._fetch(), 30_000);
@@ -112,20 +129,25 @@ class UserActivityPanel extends HTMLElement {
   async _fetch() {
     if (!this._hass) return;
     const d = this._days;
+    const tt = this._tab === "all" ? "" : `&trigger_type=${this._tab}`;
+    const ttOnly = this._tab === "all" ? "" : `?trigger_type=${this._tab}`;
     try {
-      const [stats, summary, byEntity, byUser, byDomain, byService, series, heatmap, recent] =
-        await Promise.all([
-          this._call("stats"),
-          this._call(`summary?days=${d}`),
-          this._call(`breakdown?by=entity_id&limit=20&days=${d}`),
-          this._call(`breakdown?by=user_id&limit=20&days=${d}`),
-          this._call(`breakdown?by=domain&limit=20&days=${d}`),
-          this._call(`breakdown?by=service&limit=20&days=${d}`),
-          this._call(`series?group=day&days=${d}`),
-          this._call(`heatmap?days=${d}`),
-          this._call(`events?limit=200`),
-        ]);
-      this._data = { stats, summary, byEntity, byUser, byDomain, byService, series, heatmap, recent };
+      const calls = [
+        this._call(`stats${ttOnly}`),
+        this._call(`summary?days=${d}${tt}`),
+        this._call(`breakdown?by=entity_id&limit=20&days=${d}${tt}`),
+        this._call(`breakdown?by=user_id&limit=20&days=${d}${tt}`),
+        this._call(`breakdown?by=domain&limit=20&days=${d}${tt}`),
+        this._call(`breakdown?by=service&limit=20&days=${d}${tt}`),
+        this._call(`series?group=day&days=${d}${tt}`),
+        this._call(`heatmap?days=${d}${tt}`),
+        this._call(`events?limit=200${tt}`),
+        this._call(`breakdown?by=trigger_type&limit=10&days=${d}`), // global, all tabs
+        this._call(`breakdown?by=trigger_entity_id&limit=20&days=${d}&trigger_type=automation`),
+      ];
+      const [stats, summary, byEntity, byUser, byDomain, byService, series, heatmap, recent, byTrigger, byAuto] =
+        await Promise.all(calls);
+      this._data = { stats, summary, byEntity, byUser, byDomain, byService, series, heatmap, recent, byTrigger, byAuto };
       this._error = null;
     } catch (e) {
       this._error = e.message || String(e);
@@ -143,15 +165,21 @@ class UserActivityPanel extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host { display:block; height:100%; background: var(--primary-background-color); color: var(--primary-text-color); font-family: var(--paper-font-body1_-_font-family); }
-        header { display:flex; align-items:center; gap:16px; padding: 16px 24px;
+        header { padding: 12px 24px 0;
                  background: linear-gradient(135deg, #4dabf7 0%, #9775fa 50%, #f06595 100%);
                  color: #fff; position: sticky; top:0; z-index:5;
                  box-shadow: 0 2px 12px rgba(0,0,0,.15);}
-        header h1 { margin:0; font-size: 1.25rem; font-weight: 600; flex:1; letter-spacing: 0.3px;}
+        .top { display:flex; align-items:center; gap:16px; padding-bottom: 12px;}
+        h1 { margin:0; font-size: 1.25rem; font-weight: 600; flex:1; letter-spacing: 0.3px;}
         select { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.4);
-                 background: rgba(255,255,255,.15); color: #fff; font-weight: 500; cursor: pointer;
-                 backdrop-filter: blur(4px);}
+                 background: rgba(255,255,255,.15); color: #fff; font-weight: 500; cursor: pointer; backdrop-filter: blur(4px);}
         select option { color: #222; }
+        .tabs { display:flex; gap: 4px;}
+        .tab { padding: 10px 18px; cursor: pointer; border: none; background: transparent; color: rgba(255,255,255,.75);
+               font-size: 0.92rem; font-weight: 600; border-bottom: 3px solid transparent; transition: all .15s;
+               text-transform: uppercase; letter-spacing: 0.5px;}
+        .tab:hover { color: #fff; background: rgba(255,255,255,.08);}
+        .tab.active { color: #fff; border-bottom-color: #fff;}
         main { padding: 16px 24px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr);}
         .card { background: var(--card-background-color); border-radius: 14px; padding: 16px;
                 box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow:hidden; min-height: 60px;
@@ -167,12 +195,14 @@ class UserActivityPanel extends HTMLElement {
         .col-12 { grid-column: span 12;}
         @media (max-width: 1100px) { .col-2,.col-3 { grid-column: span 6;} .col-4,.col-6,.col-8 { grid-column: span 12;} }
         @media (max-width: 600px) { .col-2,.col-3 { grid-column: span 12;} }
-        .big { font-size: 2.2rem; font-weight: 700; line-height: 1.05; color: var(--accent, var(--primary-color));}
-        .small { font-size: 1.4rem; font-weight: 700; color: var(--accent, var(--primary-text-color));}
+        .big { font-size: 2.2rem; font-weight: 700; line-height: 1.05;}
+        .small { font-size: 1.4rem; font-weight: 700;}
         .label { font-size: 0.78rem; color: var(--secondary-text-color); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px;}
         table { width:100%; border-collapse: collapse;}
         th, td { text-align:left; padding: 8px; border-bottom: 1px solid var(--divider-color); font-size: 0.88rem;}
-        th { font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px;}
+        th { font-weight: 600; color: var(--secondary-text-color); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px; cursor: pointer; user-select: none; white-space: nowrap;}
+        th:hover { color: var(--primary-color);}
+        th .arrow { margin-left: 4px; opacity: 0.6;}
         td.n, th.n { text-align:right; font-variant-numeric: tabular-nums;}
         td.n { font-weight: 600;}
         tr:hover td { background: var(--secondary-background-color);}
@@ -185,27 +215,45 @@ class UserActivityPanel extends HTMLElement {
         .empty { color: var(--secondary-text-color); font-size: 0.85rem; padding: 8px 0; font-style: italic;}
         .heat { display:grid; grid-template-columns: 36px repeat(24, 1fr); grid-auto-rows: 26px; gap: 3px; font-size: 0.7rem;}
         .heat .hh { color: var(--secondary-text-color); display:flex; align-items:center; justify-content:center; font-weight: 600;}
-        .heat .cell { border-radius: 4px; display:flex; align-items:center; justify-content:center; color: rgba(0,0,0,.85); font-weight: 600; transition: transform .1s;}
-        .heat .cell:hover { transform: scale(1.15); z-index: 2;}
-        .pill { display:inline-block; padding: 3px 10px; border-radius: 12px; background: linear-gradient(135deg, #4dabf7, #9775fa); color: #fff; font-size: 0.72rem; font-weight: 600; margin-right: 6px;}
+        .heat .cell { border-radius: 4px; display:flex; align-items:center; justify-content:center; color: rgba(0,0,0,.85); font-weight: 600;}
+        .pill { display:inline-block; padding: 2px 8px; border-radius: 10px; color:#fff; font-size: 0.7rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.25);}
+        .pill-user { background: linear-gradient(135deg,#4dabf7,#1c7ed6);}
+        .pill-automation { background: linear-gradient(135deg,#9775fa,#7048e8);}
+        .pill-script { background: linear-gradient(135deg,#f06595,#d6336c);}
+        .pill-system { background: linear-gradient(135deg,#868e96,#495057);}
         .recent-entity { font-size: 1.4rem; font-weight: 700; background: linear-gradient(135deg, #ff6b6b, #fab005); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 6px; word-break: break-all;}
+        .hint { font-size: 0.75rem; color: var(--secondary-text-color); text-align: right; margin-bottom: 6px;}
       </style>
       <header>
-        <h1>⚡ ${t.title}</h1>
-        <select id="days">
-          <option value="1">${t.p_24h}</option>
-          <option value="7">${t.p_7d}</option>
-          <option value="14" selected>${t.p_14d}</option>
-          <option value="30">${t.p_30d}</option>
-          <option value="90">${t.p_90d}</option>
-          <option value="365">${t.p_year}</option>
-        </select>
+        <div class="top">
+          <h1>⚡ ${t.title}</h1>
+          <select id="days">
+            <option value="1">${t.p_24h}</option>
+            <option value="7">${t.p_7d}</option>
+            <option value="14" selected>${t.p_14d}</option>
+            <option value="30">${t.p_30d}</option>
+            <option value="90">${t.p_90d}</option>
+            <option value="365">${t.p_year}</option>
+          </select>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="all">${t.tab_all}</button>
+          <button class="tab" data-tab="user">${t.tab_users}</button>
+          <button class="tab" data-tab="automation">${t.tab_auto}</button>
+        </div>
       </header>
       <main id="body"></main>
     `;
     this.shadowRoot.getElementById("days").addEventListener("change", (e) => {
       this._days = parseInt(e.target.value, 10);
       this._fetch();
+    });
+    this.shadowRoot.querySelectorAll(".tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this._tab = btn.dataset.tab;
+        this.shadowRoot.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
+        this._fetch();
+      });
     });
   }
 
@@ -221,8 +269,21 @@ class UserActivityPanel extends HTMLElement {
       root.innerHTML = `<div class="card col-12 empty">${t.loading}</div>`;
       return;
     }
-    const { stats, summary, byEntity, byUser, byDomain, byService, series, heatmap, recent } = this._data;
-    const avgPerDay = summary && summary.total ? (summary.total / this._days).toFixed(1) : "0";
+    if (this._tab === "automation") return this._renderAutomations();
+    return this._renderGeneric();
+  }
+
+  _renderGeneric() {
+    const t = this._t;
+    const { stats, summary, byEntity, byUser, byDomain, byService, byTrigger, series, heatmap, recent } = this._data;
+    const avg = summary?.total ? (summary.total / this._days).toFixed(1) : "0";
+    const root = this.shadowRoot.getElementById("body");
+
+    const triggerCard = this._tab === "all"
+      ? `<div class="card col-4" style="--accent:${ACCENTS.trig}"><h3>${t.by_trigger}</h3>${this._triggerBars(byTrigger)}</div>`
+      : "";
+
+    const colSeries = this._tab === "all" ? "col-8" : "col-12";
 
     root.innerHTML = `
       ${this._statCard("col-2", ACCENTS.today, "big", stats.today ?? 0, t.today)}
@@ -230,21 +291,80 @@ class UserActivityPanel extends HTMLElement {
       ${this._statCard("col-2", ACCENTS.month, "big", stats.month ?? 0, t.month)}
       ${this._statCard("col-2", ACCENTS.ent, "small", summary?.unique_entities ?? 0, t.unique_entities)}
       ${this._statCard("col-2", ACCENTS.usr, "small", summary?.unique_users ?? 0, t.unique_users)}
-      ${this._statCard("col-2", ACCENTS.avg, "small", avgPerDay, t.avg_day)}
+      ${this._statCard("col-2", ACCENTS.avg, "small", avg, t.avg_day)}
 
-      <div class="card col-8" style="--accent:${ACCENTS.week}"><h3>${t.activity_over_time}</h3>${this._sparkline(series)}</div>
-      <div class="card col-4" style="--accent:${ACCENTS.month}"><h3>${t.by_domain}</h3>${this._barList(byDomain, "key", PALETTE)}</div>
+      <div class="card ${colSeries}" style="--accent:${ACCENTS.week}"><h3>${t.activity_over_time}</h3>${this._sparkline(series)}</div>
+      ${triggerCard}
+      <div class="card col-${this._tab === 'all' ? '12' : '6'}" style="--accent:${ACCENTS.month}"><h3>${t.by_domain}</h3>${this._barList(byDomain, "key", PALETTE)}</div>
+      ${this._tab !== 'all' ? `<div class="card col-6" style="--accent:${ACCENTS.ent}"><h3>${t.top_services}</h3>${this._barList(byService, "key", PALETTE)}</div>` : ''}
 
       <div class="card col-12" style="--accent:#fa5252"><h3>${t.heatmap_title}</h3>${this._heatmap(heatmap)}</div>
 
       <div class="card col-6" style="--accent:${ACCENTS.ent}"><h3>${t.top_entities}</h3>${this._barList(byEntity, "key", PALETTE)}</div>
       <div class="card col-6" style="--accent:${ACCENTS.usr}"><h3>${t.top_users}</h3>${this._barList(this._mapUsers(byUser), "key", PALETTE)}</div>
 
+      ${this._tab === 'all' ? `
+      <div class="card col-6" style="--accent:${ACCENTS.avg}"><h3>${t.top_services}</h3>${this._barList(byService, "key", PALETTE)}</div>
+      <div class="card col-6" style="--accent:${ACCENTS.today}"><h3>${t.most_recent}</h3>${this._mostRecent(recent)}</div>
+      ` : `<div class="card col-12" style="--accent:${ACCENTS.today}"><h3>${t.most_recent}</h3>${this._mostRecent(recent)}</div>`}
+
+      <div class="card col-12" style="--accent:#15aabf">
+        <h3>${t.recent_events}</h3>
+        <div class="hint">${t.sort_hint}</div>
+        ${this._recentTable(recent)}
+      </div>
+    `;
+    this._wireSort();
+  }
+
+  _renderAutomations() {
+    const t = this._t;
+    const { stats, summary, byAuto, byEntity, byService, series, heatmap, recent } = this._data;
+    const avg = summary?.total ? (summary.total / this._days).toFixed(1) : "0";
+    const root = this.shadowRoot.getElementById("body");
+
+    root.innerHTML = `
+      ${this._statCard("col-3", ACCENTS.today, "big", stats.today ?? 0, t.today)}
+      ${this._statCard("col-3", ACCENTS.week, "big", stats.week ?? 0, t.week)}
+      ${this._statCard("col-3", ACCENTS.month, "big", stats.month ?? 0, t.month)}
+      ${this._statCard("col-3", ACCENTS.trig, "big", summary?.unique_triggers ?? 0, t.unique_triggers)}
+
+      <div class="card col-8" style="--accent:${ACCENTS.month}"><h3>${t.activity_over_time}</h3>${this._sparkline(series)}</div>
+      <div class="card col-4" style="--accent:${ACCENTS.ent}"><h3>${t.top_entities}</h3>${this._barList(byEntity, "key", PALETTE)}</div>
+
+      <div class="card col-12" style="--accent:#9775fa">
+        <h3>${t.top_automations}</h3>
+        ${this._automationBreakdown(byAuto)}
+      </div>
+
+      <div class="card col-12" style="--accent:#fa5252"><h3>${t.heatmap_title}</h3>${this._heatmap(heatmap)}</div>
+
       <div class="card col-6" style="--accent:${ACCENTS.avg}"><h3>${t.top_services}</h3>${this._barList(byService, "key", PALETTE)}</div>
       <div class="card col-6" style="--accent:${ACCENTS.today}"><h3>${t.most_recent}</h3>${this._mostRecent(recent)}</div>
 
-      <div class="card col-12" style="--accent:#15aabf"><h3>${t.recent_events}</h3>${this._recentTable(recent)}</div>
+      <div class="card col-12" style="--accent:#15aabf">
+        <h3>${t.recent_events}</h3>
+        <div class="hint">${t.sort_hint}</div>
+        ${this._recentTable(recent)}
+      </div>
     `;
+    this._wireSort();
+  }
+
+  _automationBreakdown(rows) {
+    if (!rows || !rows.length) return `<div class="empty">${this._t.no_data_long}</div>`;
+    const max = Math.max(1, ...rows.map((r) => r.n));
+    return `<div class="bars">${rows
+      .map((r, i) => {
+        const c = PALETTE[i % PALETTE.length];
+        const eid = r.key || "—";
+        return `
+          <div class="bar" data-eid="${eid}">
+            <div class="fill" style="width:${(r.n / max) * 100}%; background:${c};"></div>
+            <div class="lbl"><span>${eid}</span><span>${r.n}</span></div>
+          </div>`;
+      })
+      .join("")}</div>`;
   }
 
   _statCard(col, accent, sizeClass, value, label) {
@@ -253,6 +373,25 @@ class UserActivityPanel extends HTMLElement {
 
   _mapUsers(rows) {
     return (rows || []).map((r) => ({ ...r, key: r.user_name || r.key || "—" }));
+  }
+
+  _triggerBars(rows) {
+    if (!rows || !rows.length) return `<div class="empty">${this._t.no_data_long}</div>`;
+    const t = this._t;
+    const map = { user: t.trigger_user, automation: t.trigger_automation, script: t.trigger_script, system: t.trigger_system };
+    const max = Math.max(1, ...rows.map((r) => r.n));
+    return `<div class="bars">${rows
+      .map((r) => {
+        const key = r.key || "system";
+        const color = TRIGGER_COLORS[key] || "#868e96";
+        const label = map[key] || key;
+        return `
+          <div class="bar">
+            <div class="fill" style="width:${(r.n / max) * 100}%; background:${color};"></div>
+            <div class="lbl"><span>${label}</span><span>${r.n}</span></div>
+          </div>`;
+      })
+      .join("")}</div>`;
   }
 
   _barList(rows, keyField, palette) {
@@ -277,34 +416,77 @@ class UserActivityPanel extends HTMLElement {
     return `
       <div class="recent-entity">${r.entity_id}</div>
       <div class="label" style="font-size:0.85rem; text-transform:none; letter-spacing:0;">
-        <span class="pill">${r.service || r.source}</span>
+        <span class="pill pill-${r.trigger_type || 'system'}">${r.service || r.source}</span>
+        ${this._triggerBadge(r)}
         ${t.by_user} <b>${r.user_name || r.user_id || "—"}</b> ${t.at_time} ${this._fmtTs(r.ts)}
       </div>
     `;
   }
 
+  _triggerBadge(r) {
+    const t = this._t;
+    const map = { user: t.trigger_user, automation: t.trigger_automation, script: t.trigger_script, system: t.trigger_system };
+    const tt = r.trigger_type || "system";
+    const label = map[tt] || tt;
+    const detail = r.trigger_entity_id ? `: ${r.trigger_entity_id}` : "";
+    return `<span class="pill pill-${tt}">${label}${detail}</span>`;
+  }
+
   _recentTable(rows) {
     const t = this._t;
     if (!rows || !rows.length) return `<div class="empty">${t.no_events}</div>`;
+
+    const sorted = [...rows].sort((a, b) => {
+      const av = a[this._sortBy];
+      const bv = b[this._sortBy];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return this._sortDir === "asc" ? cmp : -cmp;
+    });
+
+    const arrow = (col) => col === this._sortBy ? `<span class="arrow">${this._sortDir === "asc" ? "▲" : "▼"}</span>` : "";
+
     return `
       <table>
-        <thead><tr><th>${t.th_time}</th><th>${t.th_user}</th><th>${t.th_entity}</th><th>${t.th_service}</th><th class="n">${t.th_source}</th></tr></thead>
+        <thead><tr>
+          <th data-sort="ts">${t.th_time}${arrow("ts")}</th>
+          <th data-sort="user_name">${t.th_user}${arrow("user_name")}</th>
+          <th data-sort="entity_id">${t.th_entity}${arrow("entity_id")}</th>
+          <th data-sort="service">${t.th_service}${arrow("service")}</th>
+          <th data-sort="trigger_type">${t.th_trigger}${arrow("trigger_type")}</th>
+          <th data-sort="source" class="n">${t.th_source}${arrow("source")}</th>
+        </tr></thead>
         <tbody>
-          ${rows
-            .map(
-              (r) => `
+          ${sorted.map((r) => `
             <tr>
               <td class="ts">${this._fmtTs(r.ts)}</td>
               <td>${r.user_name || r.user_id || "—"}</td>
               <td>${r.entity_id}</td>
               <td>${r.service || ""}</td>
+              <td>${this._triggerBadge(r)}</td>
               <td class="n">${r.source}</td>
-            </tr>`
-            )
-            .join("")}
+            </tr>
+          `).join("")}
         </tbody>
       </table>
     `;
+  }
+
+  _wireSort() {
+    this.shadowRoot.querySelectorAll("th[data-sort]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const col = th.dataset.sort;
+        if (this._sortBy === col) {
+          this._sortDir = this._sortDir === "asc" ? "desc" : "asc";
+        } else {
+          this._sortBy = col;
+          this._sortDir = col === "ts" ? "desc" : "asc";
+        }
+        this._renderBody();
+      });
+    });
   }
 
   _fmtTs(ts) {
@@ -316,24 +498,21 @@ class UserActivityPanel extends HTMLElement {
     const w = 800, h = 220, pad = 28;
     const max = Math.max(1, ...series.map((s) => s.n));
     const stepX = (w - pad * 2) / Math.max(1, series.length);
-    const bars = series
-      .map((s, i) => {
-        const bw = Math.max(8, stepX * 0.7);
-        const bh = (s.n / max) * (h - pad * 2 - 14);
-        const x = pad + i * stepX + (stepX - bw) / 2;
-        const y = h - pad - bh;
-        const color = PALETTE[i % PALETTE.length];
-        return `
-          <g>
-            <rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${color}" opacity="0.85" rx="4"/>
-            <text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="600" fill="${color}">${s.n}</text>
-            <text x="${x + bw / 2}" y="${h - 8}" text-anchor="middle" font-size="10" fill="var(--secondary-text-color)">${this._shortBucket(s.bucket)}</text>
-            <title>${s.bucket}: ${s.n}</title>
-          </g>
-        `;
-      })
-      .join("");
-    return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:240px;">${bars}</svg>`;
+    const bars = series.map((s, i) => {
+      const bw = Math.max(8, stepX * 0.7);
+      const bh = (s.n / max) * (h - pad * 2 - 14);
+      const x = pad + i * stepX + (stepX - bw) / 2;
+      const y = h - pad - bh;
+      const color = PALETTE[i % PALETTE.length];
+      return `
+        <g>
+          <rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${color}" opacity="0.85" rx="4"/>
+          <text x="${x + bw/2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="600" fill="${color}">${s.n}</text>
+          <text x="${x + bw/2}" y="${h - 8}" text-anchor="middle" font-size="10" fill="var(--secondary-text-color)">${this._shortBucket(s.bucket)}</text>
+          <title>${s.bucket}: ${s.n}</title>
+        </g>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:240px;">${bars}</svg>`;
   }
 
   _shortBucket(b) {
@@ -362,8 +541,7 @@ class UserActivityPanel extends HTMLElement {
       if (ratio > 0.2) return 2;
       return 1;
     };
-    let html = `<div class="heat">`;
-    html += `<div></div>`;
+    let html = `<div class="heat"><div></div>`;
     for (let h = 0; h < 24; h++) html += `<div class="hh">${h}</div>`;
     const order = [1, 2, 3, 4, 5, 6, 0];
     for (const dow of order) {

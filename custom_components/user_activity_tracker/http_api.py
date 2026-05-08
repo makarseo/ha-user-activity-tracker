@@ -11,7 +11,7 @@ from .const import API_BASE
 from .storage import ActivityStore
 
 
-def _since_from_query(request: web.Request, default_days: int = 7) -> int:
+def _since(request: web.Request, default_days: int = 7) -> int:
     raw = request.query.get("days")
     try:
         days = int(raw) if raw else default_days
@@ -21,14 +21,17 @@ def _since_from_query(request: web.Request, default_days: int = 7) -> int:
     return int((datetime.now(tz=timezone.utc) - timedelta(days=days)).timestamp())
 
 
+def _trigger(request: web.Request) -> str | None:
+    val = request.query.get("trigger_type")
+    if val in ("user", "automation", "system", "all"):
+        return val
+    return None
+
+
 def async_register_views(hass: HomeAssistant, store: ActivityStore) -> None:
-    hass.http.register_view(StatsView(store))
-    hass.http.register_view(EventsView(store))
-    hass.http.register_view(BreakdownView(store))
-    hass.http.register_view(SeriesView(store))
-    hass.http.register_view(PurgeView(store))
-    hass.http.register_view(SummaryView(store))
-    hass.http.register_view(HeatmapView(store))
+    for v in (StatsView, EventsView, BreakdownView, SeriesView, PurgeView,
+              SummaryView, HeatmapView, AutomationDetailView):
+        hass.http.register_view(v(store))
 
 
 class _BaseView(HomeAssistantView):
@@ -43,18 +46,18 @@ class StatsView(_BaseView):
     name = "api:user_activity_tracker:stats"
 
     async def get(self, request: web.Request) -> web.Response:
+        tt = _trigger(request)
         now = datetime.now(tz=timezone.utc)
         start_today = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
         start_week = int((now - timedelta(days=7)).timestamp())
         start_month = int((now - timedelta(days=30)).timestamp())
-
         return self.json(
             {
-                "today": await self.store.async_count_since(start_today),
-                "week": await self.store.async_count_since(start_week),
-                "month": await self.store.async_count_since(start_month),
-                "top_entity_week": await self.store.async_top_entity(start_week, 5),
-                "top_user_week": await self.store.async_top_user(start_week, 5),
+                "today": await self.store.async_count_since(start_today, tt),
+                "week": await self.store.async_count_since(start_week, tt),
+                "month": await self.store.async_count_since(start_month, tt),
+                "top_entity_week": await self.store.async_top_entity(start_week, 5, tt),
+                "top_user_week": await self.store.async_top_user(start_week, 5, tt),
             }
         )
 
@@ -64,12 +67,13 @@ class EventsView(_BaseView):
     name = "api:user_activity_tracker:events"
 
     async def get(self, request: web.Request) -> web.Response:
+        tt = _trigger(request)
         try:
             limit = int(request.query.get("limit", "100"))
         except ValueError:
             limit = 100
         limit = max(1, min(limit, 1000))
-        return self.json(await self.store.async_recent(limit))
+        return self.json(await self.store.async_recent(limit, tt))
 
 
 class BreakdownView(_BaseView):
@@ -78,13 +82,14 @@ class BreakdownView(_BaseView):
 
     async def get(self, request: web.Request) -> web.Response:
         field = request.query.get("by", "entity_id")
-        since = _since_from_query(request)
+        since = _since(request)
+        tt = _trigger(request)
         try:
             limit = int(request.query.get("limit", "50"))
         except ValueError:
             limit = 50
         limit = max(1, min(limit, 500))
-        return self.json(await self.store.async_breakdown(since, field, limit))
+        return self.json(await self.store.async_breakdown(since, field, limit, tt))
 
 
 class SeriesView(_BaseView):
@@ -92,9 +97,42 @@ class SeriesView(_BaseView):
     name = "api:user_activity_tracker:series"
 
     async def get(self, request: web.Request) -> web.Response:
-        since = _since_from_query(request, default_days=14)
+        since = _since(request, default_days=14)
         group = request.query.get("group", "day")
-        return self.json(await self.store.async_stats(since, group_by=group))
+        tt = _trigger(request)
+        return self.json(await self.store.async_stats(since, group_by=group, trigger_type=tt))
+
+
+class SummaryView(_BaseView):
+    url = f"{API_BASE}/summary"
+    name = "api:user_activity_tracker:summary"
+
+    async def get(self, request: web.Request) -> web.Response:
+        since = _since(request)
+        tt = _trigger(request)
+        return self.json(await self.store.async_summary(since, tt))
+
+
+class HeatmapView(_BaseView):
+    url = f"{API_BASE}/heatmap"
+    name = "api:user_activity_tracker:heatmap"
+
+    async def get(self, request: web.Request) -> web.Response:
+        since = _since(request, default_days=30)
+        tt = _trigger(request)
+        return self.json(await self.store.async_heatmap(since, tt))
+
+
+class AutomationDetailView(_BaseView):
+    url = f"{API_BASE}/automation"
+    name = "api:user_activity_tracker:automation"
+
+    async def get(self, request: web.Request) -> web.Response:
+        eid = request.query.get("entity_id")
+        if not eid:
+            return self.json({"error": "missing entity_id"}, status_code=400)
+        since = _since(request, default_days=30)
+        return self.json(await self.store.async_automation_detail(since, eid))
 
 
 class PurgeView(_BaseView):
@@ -109,21 +147,3 @@ class PurgeView(_BaseView):
         days = int(body.get("keep_days", 365))
         deleted = await self.store.async_purge_older_than(days)
         return self.json({"deleted": deleted, "kept_days": days})
-
-
-class SummaryView(_BaseView):
-    url = f"{API_BASE}/summary"
-    name = "api:user_activity_tracker:summary"
-
-    async def get(self, request: web.Request) -> web.Response:
-        since = _since_from_query(request)
-        return self.json(await self.store.async_summary(since))
-
-
-class HeatmapView(_BaseView):
-    url = f"{API_BASE}/heatmap"
-    name = "api:user_activity_tracker:heatmap"
-
-    async def get(self, request: web.Request) -> web.Response:
-        since = _since_from_query(request, default_days=30)
-        return self.json(await self.store.async_heatmap(since))

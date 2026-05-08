@@ -1,12 +1,12 @@
-"""Event listeners that capture user-initiated interactions."""
+"""Event listeners — log every interactive action with trigger attribution."""
 from __future__ import annotations
 
 import json
 import logging
+from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import Any
 
-from homeassistant.const import EVENT_CALL_SERVICE, EVENT_STATE_CHANGED
+from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import Event, HomeAssistant
 
 from .const import IGNORED_SERVICES, TRACKED_DOMAINS
@@ -14,57 +14,78 @@ from .storage import ActivityStore
 
 _LOGGER = logging.getLogger(__name__)
 
+EVENT_AUTOMATION_TRIGGERED = "automation_triggered"
+EVENT_SCRIPT_STARTED = "script_started"
+
+CTX_MAP_MAX = 4096  # LRU cap to bound memory
+
+
+class _LRU(OrderedDict):
+    def __init__(self, maxsize: int) -> None:
+        super().__init__()
+        self.maxsize = maxsize
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.move_to_end(key)
+        super().__setitem__(key, value)
+        if len(self) > self.maxsize:
+            self.popitem(last=False)
+
 
 class ActivityRecorder:
-    """Listens to HA events and writes user-initiated ones to the DB.
+    """Records every service call in tracked domains, classifies its origin.
 
-    Detection rule:
-        context.user_id is not None  AND  context.parent_id is None
-
-    user_id present  -> there is a real user attribution
-    parent_id is None -> this is a ROOT context (not chained from automation/script)
-
-    This gives us "user pressed a thing in UI / app / voice" while excluding
-    automations/scripts even when they were originally triggered by a user.
+    trigger_type values:
+      - 'user'        — direct UI / mobile / voice action by a user
+      - 'automation'  — triggered by an automation (we know which one)
+      - 'script'      — triggered by a script
+      - 'system'      — fallback (no user, no known parent)
     """
 
     def __init__(self, hass: HomeAssistant, store: ActivityStore) -> None:
         self.hass = hass
         self.store = store
-        self._unsub_call_service = None
-        self._unsub_state = None
-
-    # ------------------------------------------------------------------ wire
+        self._unsubs: list = []
+        # context_id -> (trigger_type, trigger_entity_id)
+        self._ctx_map: _LRU = _LRU(CTX_MAP_MAX)
 
     def async_start(self) -> None:
-        self._unsub_call_service = self.hass.bus.async_listen(
-            EVENT_CALL_SERVICE, self._on_call_service
+        self._unsubs.append(
+            self.hass.bus.async_listen(EVENT_CALL_SERVICE, self._on_call_service)
         )
-        self._unsub_state = self.hass.bus.async_listen(
-            EVENT_STATE_CHANGED, self._on_state_changed
+        self._unsubs.append(
+            self.hass.bus.async_listen(EVENT_AUTOMATION_TRIGGERED, self._on_automation)
+        )
+        self._unsubs.append(
+            self.hass.bus.async_listen(EVENT_SCRIPT_STARTED, self._on_script)
         )
         _LOGGER.debug("ActivityRecorder started")
 
     def async_stop(self) -> None:
-        for unsub in (self._unsub_call_service, self._unsub_state):
-            if unsub:
+        for unsub in self._unsubs:
+            try:
                 unsub()
-        self._unsub_call_service = None
-        self._unsub_state = None
+            except Exception:  # pylint: disable=broad-except
+                pass
+        self._unsubs = []
         _LOGGER.debug("ActivityRecorder stopped")
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ trigger maps
 
-    def _is_user_initiated(self, event: Event) -> bool:
-        ctx = event.context
-        if ctx is None:
-            return False
-        if ctx.user_id is None:
-            return False
-        if ctx.parent_id is not None:
-            # chained from automation/script — exclude
-            return False
-        return True
+    async def _on_automation(self, event: Event) -> None:
+        eid = event.data.get("entity_id")
+        if not eid:
+            return
+        self._ctx_map[event.context.id] = ("automation", eid)
+
+    async def _on_script(self, event: Event) -> None:
+        eid = event.data.get("entity_id")
+        if not eid:
+            return
+        self._ctx_map[event.context.id] = ("script", eid)
+
+    # ------------------------------------------------------------------ helpers
 
     def _user_name(self, user_id: str | None) -> str | None:
         if not user_id:
@@ -75,12 +96,26 @@ class ActivityRecorder:
         except Exception:  # pylint: disable=broad-except
             return None
 
-    # ------------------------------------------------------------------ handlers
+    def _classify(self, ctx) -> tuple[str, str | None]:
+        """Return (trigger_type, trigger_entity_id)."""
+        # 1. Walk up via parent_id (1 level — HA chains usually flat)
+        if ctx.parent_id and ctx.parent_id in self._ctx_map:
+            typ, eid = self._ctx_map[ctx.parent_id]
+            # propagate to current ctx so deeper children resolve too
+            self._ctx_map[ctx.id] = (typ, eid)
+            return typ, eid
+        # 2. Self ctx already mapped (rare — service call from automation_triggered context itself)
+        if ctx.id in self._ctx_map:
+            return self._ctx_map[ctx.id]
+        # 3. User attribution → 'user' (UI / mobile / voice / API)
+        if ctx.user_id is not None:
+            return "user", None
+        # 4. System / unknown
+        return "system", None
+
+    # ------------------------------------------------------------------ main handler
 
     async def _on_call_service(self, event: Event) -> None:
-        if not self._is_user_initiated(event):
-            return
-
         domain = event.data.get("domain")
         service = event.data.get("service")
 
@@ -89,14 +124,14 @@ class ActivityRecorder:
         if service in IGNORED_SERVICES:
             return
 
+        trigger_type, trigger_eid = self._classify(event.context)
+
         service_data = event.data.get("service_data") or {}
         entity_ids = service_data.get("entity_id")
         if isinstance(entity_ids, str):
             entity_ids = [entity_ids]
         elif not entity_ids:
             entity_ids = []
-
-        # If no specific entity, log a single domain-level event
         if not entity_ids:
             entity_ids = [f"{domain}.*"]
 
@@ -121,61 +156,8 @@ class ActivityRecorder:
                     "source": "service",
                     "context_id": event.context.id,
                     "parent_id": event.context.parent_id,
+                    "trigger_type": trigger_type,
+                    "trigger_entity_id": trigger_eid,
                     "extra": extra,
                 }
             )
-
-    async def _on_state_changed(self, event: Event) -> None:
-        # Backup signal: catches state changes that were user-initiated but
-        # didn't go through call_service (e.g. some integrations push state).
-        if not self._is_user_initiated(event):
-            return
-
-        entity_id: str = event.data.get("entity_id", "")
-        if not entity_id:
-            return
-        domain = entity_id.split(".", 1)[0]
-        if domain not in TRACKED_DOMAINS:
-            return
-
-        new_state = event.data.get("new_state")
-        old_state = event.data.get("old_state")
-        if new_state is None or old_state is None:
-            return
-        if new_state.state == old_state.state:
-            return
-
-        # Skip if there was a service call with the same context — already logged
-        if await self._already_logged(event.context.id):
-            return
-
-        ts = int(datetime.now(tz=timezone.utc).timestamp())
-        user_id = event.context.user_id
-        user_name = self._user_name(user_id)
-
-        await self.store.async_log(
-            {
-                "ts": ts,
-                "domain": domain,
-                "entity_id": entity_id,
-                "service": None,
-                "user_id": user_id,
-                "user_name": user_name,
-                "source": "state",
-                "context_id": event.context.id,
-                "parent_id": event.context.parent_id,
-                "extra": json.dumps(
-                    {"from": old_state.state, "to": new_state.state}, ensure_ascii=False
-                ),
-            }
-        )
-
-    async def _already_logged(self, context_id: str | None) -> bool:
-        if not context_id:
-            return False
-        rows = await self.hass.async_add_executor_job(
-            self.store._query,
-            "SELECT 1 FROM events WHERE context_id = ? LIMIT 1",
-            (context_id,),
-        )
-        return bool(rows)
