@@ -37,19 +37,39 @@ class ActivityCoordinator(DataUpdateCoordinator):
         start_week = int((now - timedelta(days=7)).timestamp())
         start_month = int((now - timedelta(days=30)).timestamp())
 
-        today = await self.store.async_count_since(start_today)
-        week = await self.store.async_count_since(start_week)
-        month = await self.store.async_count_since(start_month)
+        try:
+            today = await self.store.async_count_since(start_today)
+            week = await self.store.async_count_since(start_week)
+            month = await self.store.async_count_since(start_month)
+            top_entity_rows = await self.store.async_breakdown(start_week, "entity_id", 1)
+            top_user_rows = await self.store.async_breakdown(start_week, "user_id", 1)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Coordinator update failed")
+            return {"today": 0, "week": 0, "month": 0, "top_entity": None, "top_user": None}
 
-        top_entity = await self.store.async_top_entity(start_week, limit=1)
-        top_user = await self.store.async_top_user(start_week, limit=1)
+        top_entity = None
+        if top_entity_rows:
+            r = top_entity_rows[0]
+            top_entity = {
+                "entity_id": r.get("key"),
+                "friendly_name": r.get("friendly_name"),
+                "n": r.get("n", 0),
+            }
+        top_user = None
+        if top_user_rows:
+            r = top_user_rows[0]
+            top_user = {
+                "user_id": r.get("key"),
+                "user_name": r.get("user_name"),
+                "n": r.get("n", 0),
+            }
 
         return {
             "today": today,
             "week": week,
             "month": month,
-            "top_entity": top_entity[0] if top_entity else None,
-            "top_user": top_user[0] if top_user else None,
+            "top_entity": top_entity,
+            "top_user": top_user,
         }
 
 
