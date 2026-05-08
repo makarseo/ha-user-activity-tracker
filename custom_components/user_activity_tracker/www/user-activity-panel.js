@@ -413,9 +413,12 @@ class HomeActivityPanel extends HTMLElement {
         @media (max-width: 1100px) { .col-2,.col-3 { grid-column: span 6; } .col-4,.col-6,.col-8 { grid-column: span 12; } }
         @media (max-width: 600px) { .col-2,.col-3 { grid-column: span 12; } }
 
-        /* Stat tiles — gradient background per reference design */
+        /* Stat tiles — gradient background per reference design.
+           min-height + flex column keeps every tile the same height
+           regardless of whether a delta pill is present. */
         .tile {
           position: relative; border-radius: 16px; padding: 18px;
+          min-height: 170px; display: flex; flex-direction: column;
           overflow: hidden; border: 1px solid var(--tile-border, rgba(255,255,255,0.08));
           background: var(--tile-bg, rgba(255,255,255,0.03));
           backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
@@ -444,10 +447,12 @@ class HomeActivityPanel extends HTMLElement {
           text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
         }
         .tile-delta {
-          margin-top: 10px; font-size: 0.72rem; font-weight: 600;
+          margin-top: auto; align-self: flex-start;
+          font-size: 0.72rem; font-weight: 600;
           display: inline-flex; align-items: center; gap: 4px;
           padding: 3px 8px; border-radius: 8px;
         }
+        .tile-delta-placeholder { margin-top: auto; height: 22px; }
         .delta-up   { background: rgba(34,197,94,0.15);  color: #4ade80; }
         .delta-down { background: rgba(239,68,68,0.15);  color: #f87171; }
         .delta-flat { background: rgba(100,116,139,0.15); color: #94a3b8; }
@@ -829,7 +834,7 @@ class HomeActivityPanel extends HTMLElement {
       <div class="tile-icon">${icon}</div>
       <div class="tile-value" style="font-size:1.35rem;line-height:1.15;color:${sch.text};">${val}</div>
       <div class="tile-label">${label}</div>
-      ${sub ? `<div class="tile-delta delta-flat">${sub}</div>` : ""}
+      ${sub ? `<div class="tile-delta delta-flat">${sub}</div>` : `<div class="tile-delta-placeholder"></div>`}
     </div>`;
   }
 
@@ -976,7 +981,7 @@ class HomeActivityPanel extends HTMLElement {
       <div class="tile-icon">${icon}</div>
       <div class="tile-value">${val}</div>
       <div class="tile-label">${label}</div>
-      ${delta}
+      ${delta || `<div class="tile-delta-placeholder"></div>`}
     </div>`;
   }
 
@@ -989,6 +994,7 @@ class HomeActivityPanel extends HTMLElement {
         <div class="tile-icon">⏰</div>
         <div class="tile-value">—</div>
         <div class="tile-label">${t.peak}</div>
+        <div class="tile-delta-placeholder"></div>
       </div>`;
     }
     return `<div class="tile col-2" style="--tile-bg:${sch.bg};--tile-border:${sch.border};--tile-glow:${sch.glow};--tile-text:${sch.text}">
