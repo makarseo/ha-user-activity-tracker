@@ -250,33 +250,60 @@ class HomeActivityPanel extends HTMLElement {
   async _fetch() {
     if (!this._hass) return;
     const d = this._days;
-    try {
-      const calls = {
-        summary:    this._call(`summary?days=${d}`),
-        compare:    this._call(`compare?days=${d}`),
-        series:     this._call(`series?group=day&days=${d}&split=trigger`),
-        heatmap:    this._call(`heatmap?days=${d}`),
-        sources:    this._call(`breakdown?by=trigger_type&limit=10&days=${d}`),
-        insights:   this._call(`insights?days=${d}`),
-        anomalies:  this._call(`anomalies?days=${d}`),
-        rooms:      this._call(`rooms?days=${d}`),
-        topEntity:  this._call(`breakdown?by=entity_id&limit=20&days=${d}`),
-        topAuto:    this._call(`breakdown?by=trigger_entity_id&limit=20&days=${d}&trigger_type=automation`),
-        topUser:    this._call(`breakdown?by=user_id&limit=20&days=${d}`),
-        topService: this._call(`breakdown?by=service&limit=20&days=${d}`),
-        byDomain:   this._call(`breakdown?by=domain&limit=20&days=${d}`),
-        recent:     this._call(`events?limit=200`),
-        peak:       this._call(`stats`),
-      };
-      const keys = Object.keys(calls);
-      const vals = await Promise.all(Object.values(calls));
-      this._data = {};
-      keys.forEach((k, i) => (this._data[k] = vals[i]));
-      this._error = null;
-    } catch (e) {
-      this._error = e.message || String(e);
+    const endpoints = {
+      summary:    `summary?days=${d}`,
+      compare:    `compare?days=${d}`,
+      series:     `series?group=day&days=${d}&split=trigger`,
+      heatmap:    `heatmap?days=${d}`,
+      sources:    `breakdown?by=trigger_type&limit=10&days=${d}`,
+      insights:   `insights?days=${d}`,
+      anomalies:  `anomalies?days=${d}`,
+      rooms:      `rooms?days=${d}`,
+      topEntity:  `breakdown?by=entity_id&limit=20&days=${d}`,
+      topAuto:    `breakdown?by=trigger_entity_id&limit=20&days=${d}&trigger_type=automation`,
+      topUser:    `breakdown?by=user_id&limit=20&days=${d}`,
+      topService: `breakdown?by=service&limit=20&days=${d}`,
+      byDomain:   `breakdown?by=domain&limit=20&days=${d}`,
+      recent:     `events?limit=200`,
+      peak:       `stats`,
+    };
+    // Each call independent — partial failures don't take down the whole panel
+    const results = await Promise.all(
+      Object.entries(endpoints).map(async ([k, p]) => {
+        try {
+          const v = await this._call(p);
+          return [k, v, null];
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.error(`[UAT] ${p} failed:`, e);
+          return [k, this._defaultFor(k), this._fmtError(e, p)];
+        }
+      })
+    );
+    this._data = {};
+    const errs = [];
+    for (const [k, v, err] of results) {
+      this._data[k] = v;
+      if (err) errs.push(err);
     }
+    this._error = errs.length ? errs.join(" · ") : null;
     this._renderBody();
+  }
+
+  _defaultFor(key) {
+    if (["recent", "series", "heatmap", "sources", "insights",
+         "rooms", "topEntity", "topAuto", "topUser", "topService", "byDomain"].includes(key)) return [];
+    if (key === "anomalies") return { rapid_toggle: [], user_cancelled: [], duplicate_automations: [], night_activity: [] };
+    return {};
+  }
+
+  _fmtError(e, path) {
+    if (!e) return `${path}: unknown`;
+    if (typeof e === "string") return `${path}: ${e}`;
+    if (e.message) return `${path}: ${e.message}`;
+    if (e.body && e.body.message) return `${path}: ${e.body.message}`;
+    if (e.status_code) return `${path}: HTTP ${e.status_code}`;
+    try { return `${path}: ${JSON.stringify(e)}`; } catch (_) { return `${path}: error`; }
   }
 
   _call(path) { return this._hass.callApi("GET", `user_activity_tracker/${path}`); }
@@ -413,17 +440,26 @@ class HomeActivityPanel extends HTMLElement {
     const root = this.shadowRoot.getElementById("body");
     if (!root) return;
     const t = this._t;
-    if (this._error) { root.innerHTML = `<div class="card col-12 err">${t.error} ${this._error}</div>`; return; }
     if (!this._data) { root.innerHTML = `<div class="card col-12 empty">${t.loading}</div>`; return; }
 
+    // render the requested tab
     switch (this._tab) {
-      case "people":    return this._renderPeople(root);
-      case "auto":      return this._renderAuto(root);
-      case "devices":   return this._renderDevices(root);
-      case "rooms":     return this._renderRooms(root);
-      case "anomalies": return this._renderAnomalies(root);
-      case "journal":   return this._renderJournal(root);
-      default:          return this._renderOverview(root);
+      case "people":    this._renderPeople(root); break;
+      case "auto":      this._renderAuto(root); break;
+      case "devices":   this._renderDevices(root); break;
+      case "rooms":     this._renderRooms(root); break;
+      case "anomalies": this._renderAnomalies(root); break;
+      case "journal":   this._renderJournal(root); break;
+      default:          this._renderOverview(root);
+    }
+
+    // non-blocking error banner if any endpoint failed
+    if (this._error) {
+      const banner = document.createElement("div");
+      banner.className = "card col-12";
+      banner.style.cssText = "background:#fef2f2;color:#991b1b;border-left:3px solid #dc2626;font-size:.82rem;";
+      banner.innerHTML = `<b>${t.error}</b> ${this._error}`;
+      root.insertBefore(banner, root.firstChild);
     }
   }
 

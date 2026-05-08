@@ -152,17 +152,19 @@ class ActivityStore:
                          "trigger_entity_id", "trigger_type", "area_id"):
             field = "entity_id"
         clause = _trigger_clause(trigger_type)
-        time_clause = "AND ts BETWEEN ? AND ?" if until_ts is not None else ""
-        params: list = [since_ts]
-        if until_ts is not None:
-            params.append(until_ts)
-        params.append(limit)
+        if until_ts is None:
+            where_ts = "ts >= ?"
+            ts_params: tuple = (since_ts,)
+        else:
+            where_ts = "ts BETWEEN ? AND ?"
+            ts_params = (since_ts, until_ts)
+        params = ts_params + (limit,)
 
         if field == "user_id":
             sql = f"""
                 SELECT user_id AS key, MAX(user_name) AS user_name, COUNT(*) AS n
                 FROM events
-                WHERE ts >= ? AND user_id IS NOT NULL {time_clause} {clause}
+                WHERE {where_ts} AND user_id IS NOT NULL {clause}
                 GROUP BY user_id ORDER BY n DESC LIMIT ?
             """
         elif field == "entity_id":
@@ -170,7 +172,7 @@ class ActivityStore:
                 SELECT entity_id AS key, MAX(friendly_name) AS friendly_name,
                        MAX(area_name) AS area_name, MAX(domain) AS domain, COUNT(*) AS n
                 FROM events
-                WHERE ts >= ? {time_clause} {clause}
+                WHERE {where_ts} {clause}
                 GROUP BY entity_id ORDER BY n DESC LIMIT ?
             """
         elif field == "trigger_entity_id":
@@ -178,26 +180,25 @@ class ActivityStore:
                 SELECT trigger_entity_id AS key, MAX(automation_name) AS automation_name,
                        COUNT(*) AS n
                 FROM events
-                WHERE ts >= ? AND trigger_entity_id IS NOT NULL {time_clause} {clause}
+                WHERE {where_ts} AND trigger_entity_id IS NOT NULL {clause}
                 GROUP BY trigger_entity_id ORDER BY n DESC LIMIT ?
             """
         elif field == "area_id":
             sql = f"""
                 SELECT area_id AS key, MAX(area_name) AS area_name, COUNT(*) AS n
                 FROM events
-                WHERE ts >= ? AND area_id IS NOT NULL {time_clause} {clause}
+                WHERE {where_ts} AND area_id IS NOT NULL {clause}
                 GROUP BY area_id ORDER BY n DESC LIMIT ?
             """
         else:
             sql = f"""
                 SELECT {field} AS key, COUNT(*) AS n
                 FROM events
-                WHERE ts >= ? AND {field} IS NOT NULL {time_clause} {clause}
+                WHERE {where_ts} AND {field} IS NOT NULL {clause}
                 GROUP BY {field} ORDER BY n DESC LIMIT ?
             """
 
-        # Reorder params to match SQL: since_ts comes first; until_ts only if used
-        return await self.hass.async_add_executor_job(self._query, sql, tuple(params))
+        return await self.hass.async_add_executor_job(self._query, sql, params)
 
     async def async_recent(self, limit: int = 100,
                            trigger_type: str | None = None) -> list[dict]:
@@ -251,8 +252,12 @@ class ActivityStore:
     async def async_summary(self, since_ts: int, trigger_type: str | None = None,
                             until_ts: int | None = None) -> dict:
         clause = _trigger_clause(trigger_type)
-        time_clause = "AND ts BETWEEN ? AND ?" if until_ts else ""
-        params = (since_ts,) if not until_ts else (since_ts, until_ts)
+        if until_ts is None:
+            where = "ts >= ?"
+            params = (since_ts,)
+        else:
+            where = "ts BETWEEN ? AND ?"
+            params = (since_ts, until_ts)
         rows = await self.hass.async_add_executor_job(
             self._query,
             f"""
@@ -268,7 +273,7 @@ class ActivityStore:
                 SUM(CASE WHEN trigger_type='system' OR trigger_type IS NULL THEN 1 ELSE 0 END) AS n_sys,
                 MIN(ts) AS first_ts, MAX(ts) AS last_ts
             FROM events
-            WHERE ts >= ? {time_clause} {clause}
+            WHERE {where} {clause}
             """,
             params,
         )
