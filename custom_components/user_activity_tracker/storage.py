@@ -280,8 +280,15 @@ class ActivityStore:
         return rows[0] if rows else {}
 
     async def async_heatmap(self, since_ts: int,
-                            trigger_type: str | None = None) -> list[dict]:
+                            trigger_type: str | None = None,
+                            until_ts: int | None = None) -> list[dict]:
         clause = _trigger_clause(trigger_type)
+        if until_ts is None:
+            where = "ts >= ?"
+            params: tuple = (since_ts,)
+        else:
+            where = "ts BETWEEN ? AND ?"
+            params = (since_ts, until_ts)
         return await self.hass.async_add_executor_job(
             self._query,
             f"""
@@ -290,10 +297,10 @@ class ActivityStore:
                 CAST(strftime('%H', datetime(ts,'unixepoch','localtime')) AS INT) AS hour,
                 COUNT(*) AS n
             FROM events
-            WHERE ts >= ? {clause}
+            WHERE {where} {clause}
             GROUP BY dow, hour
             """,
-            (since_ts,),
+            params,
         )
 
     async def async_peak_hour(self, since_ts: int) -> dict | None:
@@ -403,6 +410,148 @@ class ActivityStore:
             LIMIT 10
             """,
             (since_ts,),
+        )
+
+    # ---- Spook-inspired analytics --------------------------------------
+
+    async def async_dead_automations(self, since_ts: int,
+                                     dead_threshold_days: int = 30) -> list[dict]:
+        """Automations registered in HA registry but never fired in [since_ts..now].
+        We can't list HA's registered automations from storage alone — but we can
+        flag automations that fired previously but went silent recently."""
+        threshold_ts = since_ts  # automation seen at all in this period?
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT trigger_entity_id AS entity_id,
+                   MAX(automation_name) AS automation_name,
+                   COUNT(*) AS n,
+                   MAX(ts) AS last_seen
+            FROM events
+            WHERE trigger_entity_id IS NOT NULL
+              AND trigger_type IN ('automation','script')
+            GROUP BY trigger_entity_id
+            HAVING last_seen < ?
+               AND n >= 1
+            ORDER BY last_seen DESC
+            LIMIT 20
+            """,
+            (threshold_ts,),
+        )
+
+    async def async_low_impact_automations(self, since_ts: int,
+                                           min_runs: int = 3) -> list[dict]:
+        """Automations that ran multiple times but only ever touched 1 entity."""
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT trigger_entity_id AS entity_id,
+                   MAX(automation_name) AS automation_name,
+                   COUNT(*) AS n_runs,
+                   COUNT(DISTINCT entity_id) AS n_entities,
+                   COUNT(DISTINCT service) AS n_services
+            FROM events
+            WHERE ts >= ?
+              AND trigger_entity_id IS NOT NULL
+              AND trigger_type IN ('automation','script')
+            GROUP BY trigger_entity_id
+            HAVING n_runs >= ? AND n_entities = 1 AND n_services <= 1
+            ORDER BY n_runs DESC
+            LIMIT 10
+            """,
+            (since_ts, min_runs),
+        )
+
+    async def async_manual_after_auto(self, since_ts: int,
+                                      window_sec: int = 300) -> list[dict]:
+        """User manually undid what an automation just did within `window_sec`."""
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT a.entity_id,
+                   MAX(a.friendly_name) AS friendly_name,
+                   a.service AS auto_service, a.ts AS auto_ts,
+                   a.automation_name AS auto_name, a.trigger_entity_id AS auto_eid,
+                   b.service AS user_service, b.ts AS user_ts,
+                   b.user_name AS user_name
+            FROM events a
+            JOIN events b ON a.entity_id = b.entity_id
+                         AND b.ts > a.ts AND (b.ts - a.ts) <= ?
+                         AND a.trigger_type IN ('automation','script')
+                         AND b.trigger_type = 'user'
+                         AND ((a.service LIKE 'turn_%' AND b.service LIKE 'turn_%' AND a.service != b.service)
+                              OR (a.service = 'open_cover' AND b.service = 'close_cover')
+                              OR (a.service = 'close_cover' AND b.service = 'open_cover'))
+            WHERE a.ts >= ?
+            GROUP BY a.id
+            ORDER BY a.ts DESC
+            LIMIT 20
+            """,
+            (window_sec, since_ts),
+        )
+
+    async def async_routine_candidates(self, since_ts: int,
+                                       min_consistency: int = 5) -> list[dict]:
+        """Entities that the same user toggles at the same hour-of-day repeatedly.
+        Strong candidates for new automations."""
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT entity_id, MAX(friendly_name) AS friendly_name,
+                   user_name,
+                   CAST(strftime('%H', datetime(ts,'unixepoch','localtime')) AS INT) AS hour,
+                   service,
+                   COUNT(*) AS n
+            FROM events
+            WHERE ts >= ? AND trigger_type = 'user' AND user_name IS NOT NULL
+            GROUP BY entity_id, user_name, hour, service
+            HAVING n >= ?
+            ORDER BY n DESC
+            LIMIT 15
+            """,
+            (since_ts, min_consistency),
+        )
+
+    async def async_user_top_entities(self, since_ts: int, user_id: str,
+                                      limit: int = 10) -> list[dict]:
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT entity_id,
+                   MAX(friendly_name) AS friendly_name,
+                   MAX(area_name) AS area_name,
+                   COUNT(*) AS n
+            FROM events
+            WHERE ts >= ? AND user_id = ? AND trigger_type = 'user'
+            GROUP BY entity_id ORDER BY n DESC LIMIT ?
+            """,
+            (since_ts, user_id, limit),
+        )
+
+    async def async_user_peak_hour(self, since_ts: int, user_id: str) -> dict | None:
+        rows = await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT CAST(strftime('%H', datetime(ts,'unixepoch','localtime')) AS INT) AS hour,
+                   COUNT(*) AS n
+            FROM events
+            WHERE ts >= ? AND user_id = ? AND trigger_type = 'user'
+            GROUP BY hour ORDER BY n DESC LIMIT 1
+            """,
+            (since_ts, user_id),
+        )
+        return rows[0] if rows else None
+
+    async def async_user_top_areas(self, since_ts: int, user_id: str, limit: int = 5) -> list[dict]:
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT area_id, MAX(area_name) AS area_name, COUNT(*) AS n
+            FROM events
+            WHERE ts >= ? AND user_id = ? AND area_id IS NOT NULL AND trigger_type = 'user'
+            GROUP BY area_id ORDER BY n DESC LIMIT ?
+            """,
+            (since_ts, user_id, limit),
         )
 
     async def async_purge_older_than(self, days: int) -> int:

@@ -29,6 +29,18 @@ const I18N = {
     anomaly_cancelled: "User actions cancelled by automations",
     anomaly_dup: "Possible duplicate automations",
     anomaly_night: "Night activity (00:00–06:00)",
+    anomaly_dead: "Dead automations (not seen in 7+ days)",
+    anomaly_low: "Low-impact automations (1 entity, 1 service)",
+    anomaly_manual_after: "Manual override after automation",
+    anomaly_routine: "Automation candidates (recurring user patterns)",
+    hp_1h: "1h", hp_3h: "3h", hp_6h: "6h", hp_today: "Today", hp_yest: "Yesterday",
+    hp_7d: "7d", hp_30d: "30d", hp_90d: "90d",
+    user_top_devices: "Top devices used", user_top_rooms: "Most used rooms",
+    user_peak: "Peak hour", user_total: "Total events",
+    automation_candidate_text: "{user} does {action} on {entity} at {hour}:00 — {n}× — automation candidate",
+    dead_automation_text: "{name} last fired {days}d ago",
+    low_impact_text: "{name} ran {n} times — only touches 1 entity, 1 service",
+    manual_after_text: "Automation {auto} did {action1}, {user} did {action2} {sec}s later",
     th_time: "Time", th_user: "User", th_entity: "Device",
     th_service: "Action", th_source: "Source", th_trigger: "Trigger", th_room: "Room",
     by_user: "by", at_time: "at", in_room: "in",
@@ -91,6 +103,18 @@ const I18N = {
     anomaly_cancelled: "Действия пользователя отменены автоматизациями",
     anomaly_dup: "Возможные дублирующиеся автоматизации",
     anomaly_night: "Ночная активность (00:00–06:00)",
+    anomaly_dead: "Мёртвые автоматизации (не работали 7+ дней)",
+    anomaly_low: "Малоэффективные автоматизации (1 устройство, 1 действие)",
+    anomaly_manual_after: "Ручное действие после автоматизации",
+    anomaly_routine: "Кандидаты на автоматизацию (повторяющиеся паттерны)",
+    hp_1h: "1ч", hp_3h: "3ч", hp_6h: "6ч", hp_today: "Сегодня", hp_yest: "Вчера",
+    hp_7d: "7д", hp_30d: "30д", hp_90d: "90д",
+    user_top_devices: "Самые используемые устройства", user_top_rooms: "Где чаще всего",
+    user_peak: "Пик активности", user_total: "Всего событий",
+    automation_candidate_text: "{user} делает {action} на {entity} в {hour}:00 — {n}× — кандидат на автоматизацию",
+    dead_automation_text: "{name} последний раз сработала {days} дн. назад",
+    low_impact_text: "{name} запускалась {n} раз — управляет только 1 устройством, 1 сервис",
+    manual_after_text: "Автоматизация {auto} сделала {action1}, {user} сделал {action2} через {sec}с",
     th_time: "Время", th_user: "Юзер", th_entity: "Устройство",
     th_service: "Действие", th_source: "Источник", th_trigger: "Триггер", th_room: "Комната",
     by_user: "от", at_time: "в", in_room: "в",
@@ -153,6 +177,18 @@ const I18N = {
     anomaly_cancelled: "Дії користувача скасовані автоматизаціями",
     anomaly_dup: "Можливі дублюючі автоматизації",
     anomaly_night: "Нічна активність (00:00–06:00)",
+    anomaly_dead: "Мертві автоматизації (не працювали 7+ днів)",
+    anomaly_low: "Малоефективні автоматизації (1 пристрій, 1 дія)",
+    anomaly_manual_after: "Ручна дія після автоматизації",
+    anomaly_routine: "Кандидати на автоматизацію (повторювані патерни)",
+    hp_1h: "1г", hp_3h: "3г", hp_6h: "6г", hp_today: "Сьогодні", hp_yest: "Вчора",
+    hp_7d: "7д", hp_30d: "30д", hp_90d: "90д",
+    user_top_devices: "Найчастіше використовує", user_top_rooms: "Де найчастіше",
+    user_peak: "Пік активності", user_total: "Усього подій",
+    automation_candidate_text: "{user} робить {action} на {entity} о {hour}:00 — {n}× — кандидат на автоматизацію",
+    dead_automation_text: "{name} востаннє спрацювала {days} дн. тому",
+    low_impact_text: "{name} спрацювала {n} разів — керує лише 1 пристроєм, 1 сервіс",
+    manual_after_text: "Автоматизація {auto} зробила {action1}, {user} зробив {action2} через {sec}с",
     th_time: "Час", th_user: "Юзер", th_entity: "Пристрій",
     th_service: "Дія", th_source: "Джерело", th_trigger: "Тригер", th_room: "Кімната",
     by_user: "від", at_time: "о", in_room: "у",
@@ -221,6 +257,7 @@ class HomeActivityPanel extends HTMLElement {
       this._initialized = true;
       this._days = 14;
       this._tab = "overview";
+      this._heatPeriod = "14d"; // 1h | 3h | 6h | today | yesterday | 7d | 14d | 30d | 90d
       this._sortBy = "ts"; this._sortDir = "desc";
       this._render();
       this._fetch();
@@ -238,13 +275,20 @@ class HomeActivityPanel extends HTMLElement {
 
   _label_service(s) { if (!s) return ""; return this._t.services[s] || s; }
 
+  _heatmapQuery() {
+    const p = this._heatPeriod;
+    if (["1h", "3h", "6h", "today", "yesterday"].includes(p)) return `heatmap?period=${p}`;
+    if (["7d", "14d", "30d", "90d"].includes(p)) return `heatmap?days=${parseInt(p, 10)}`;
+    return `heatmap?days=${this._days}`;
+  }
+
   async _fetch() {
     if (!this._hass) return;
     const d = this._days;
     const endpoints = {
       summary: `summary?days=${d}`, compare: `compare?days=${d}`,
       series: `series?group=day&days=${d}&split=trigger`,
-      heatmap: `heatmap?days=${d}`,
+      heatmap: this._heatmapQuery(),
       sources: `breakdown?by=trigger_type&limit=10&days=${d}`,
       insights: `insights?days=${d}`, anomalies: `anomalies?days=${d}`,
       rooms: `rooms?days=${d}`,
@@ -254,6 +298,7 @@ class HomeActivityPanel extends HTMLElement {
       topService: `breakdown?by=service&limit=20&days=${d}`,
       byDomain: `breakdown?by=domain&limit=20&days=${d}`,
       recent: `events?limit=200`, peak: `stats`,
+      usersProfile: `users_profile?days=${d}`,
     };
     const results = await Promise.all(
       Object.entries(endpoints).map(async ([k, p]) => {
@@ -276,8 +321,11 @@ class HomeActivityPanel extends HTMLElement {
 
   _defaultFor(key) {
     if (["recent","series","heatmap","sources","insights","rooms",
-         "topEntity","topAuto","topUser","topService","byDomain"].includes(key)) return [];
-    if (key === "anomalies") return { rapid_toggle: [], user_cancelled: [], duplicate_automations: [], night_activity: [] };
+         "topEntity","topAuto","topUser","topService","byDomain","usersProfile"].includes(key)) return [];
+    if (key === "anomalies") return {
+      rapid_toggle: [], user_cancelled: [], duplicate_automations: [], night_activity: [],
+      dead_automations: [], low_impact_automations: [], manual_after_auto: [], routine_candidates: [],
+    };
     return {};
   }
 
@@ -432,24 +480,35 @@ class HomeActivityPanel extends HTMLElement {
         .pill-system     { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
         .pill-action     { background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.08); }
 
-        .bars { display: flex; flex-direction: column; gap: 8px; }
+        .bars { display: flex; flex-direction: column; gap: 10px; }
         .bar {
-          position: relative; height: 28px; border-radius: 8px; overflow: hidden;
-          font-size: 0.82rem; background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.04);
+          position: relative; min-height: 48px; border-radius: 10px; overflow: hidden;
+          font-size: 0.85rem; background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.05);
         }
         .bar > .fill {
           position: absolute; left: 0; top: 0; bottom: 0; opacity: 0.7;
-          border-radius: 8px;
+          border-radius: 10px;
           box-shadow: 0 0 12px var(--bar-glow, transparent);
         }
         .bar > .lbl {
-          position: relative; z-index: 1; padding: 4px 12px; display: flex;
-          justify-content: space-between; line-height: 20px; color: #e2e8f0;
+          position: relative; z-index: 1; padding: 8px 14px; display: flex;
+          justify-content: space-between; align-items: center; gap: 10px;
+          color: #e2e8f0; min-height: 48px;
         }
-        .bar > .lbl > .l { display: flex; flex-direction: column; line-height: 1.1; }
-        .bar > .lbl > .l > .n2 { font-size: 0.65rem; color: rgba(226,232,240,0.5); margin-top: 1px; font-family: ui-monospace,monospace; }
-        .bar > .lbl > .v { font-weight: 700; font-size: 0.95rem; color: #fff; }
+        .bar > .lbl > .l { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+        .bar > .lbl > .l > .name-main {
+          font-weight: 600; color: #fff; font-size: 0.92rem;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .bar > .lbl > .l > .n2 {
+          font-size: 0.72rem; color: rgba(226,232,240,0.55); font-family: ui-monospace,monospace;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .bar > .lbl > .v {
+          font-weight: 800; font-size: 1.1rem; color: #fff; flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
+        }
 
         .heat {
           display: grid; grid-template-columns: 36px repeat(24, 1fr);
@@ -460,6 +519,47 @@ class HomeActivityPanel extends HTMLElement {
           border-radius: 5px; display: flex; align-items: center; justify-content: center;
           color: rgba(255,255,255,0.95); font-weight: 600;
           border: 1px solid rgba(255,255,255,0.03);
+        }
+        /* chip-style period selector */
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+        .chip {
+          padding: 6px 12px; border-radius: 999px; cursor: pointer; border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03); color: #94a3b8; font-size: 0.78rem; font-weight: 600;
+          transition: all .15s; font-family: inherit;
+        }
+        .chip:hover { color: #e2e8f0; border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); }
+        .chip.active {
+          background: linear-gradient(135deg, rgba(96,165,250,0.2), rgba(192,132,252,0.2));
+          color: #fff; border-color: rgba(96,165,250,0.4);
+          box-shadow: 0 0 12px rgba(96,165,250,0.25);
+        }
+        /* user profile cards */
+        .user-card {
+          background: linear-gradient(160deg, rgba(96,165,250,0.06), rgba(167,139,250,0.04));
+          border: 1px solid rgba(255,255,255,0.06); border-radius: 14px;
+          padding: 16px; margin-bottom: 12px;
+        }
+        .user-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+        .user-avatar {
+          width: 44px; height: 44px; border-radius: 50%;
+          background: linear-gradient(135deg, #60a5fa, #c084fc); color: #fff;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1.1rem; font-weight: 700; flex-shrink: 0;
+        }
+        .user-info { flex: 1; min-width: 0; }
+        .user-name-big { font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .user-meta { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
+        .user-stats {
+          display: flex; gap: 12px; flex-wrap: wrap;
+          padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.04);
+          border-bottom: 1px solid rgba(255,255,255,0.04); margin-bottom: 12px;
+        }
+        .user-stat { display: flex; flex-direction: column; gap: 2px; }
+        .user-stat .v { font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .user-stat .l { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+        .user-section-title {
+          font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;
+          letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px;
         }
 
         .insight {
@@ -575,6 +675,14 @@ class HomeActivityPanel extends HTMLElement {
       banner.innerHTML = `<b>${t.error}</b> ${this._error}`;
       root.insertBefore(banner, root.firstChild);
     }
+
+    // Wire heatmap period chips (only present on overview)
+    this.shadowRoot.querySelectorAll('[data-role="heat-chips"] .chip').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this._heatPeriod = btn.dataset.heat;
+        this._fetch();
+      });
+    });
   }
 
   // ===== OVERVIEW =====
@@ -606,7 +714,11 @@ class HomeActivityPanel extends HTMLElement {
 
       <div class="card col-12"><h3>${t.insights}</h3>${this._renderInsights(insights)}</div>
 
-      <div class="card col-12"><h3>${t.heatmap}</h3>${this._heatmap(this._data.heatmap)}</div>
+      <div class="card col-12">
+        <h3>${t.heatmap}</h3>
+        ${this._heatmapChips()}
+        ${this._heatmap(this._data.heatmap)}
+      </div>
 
       <div class="card col-6"><h3>${t.top_rooms}</h3>${this._roomsList(rooms || [])}</div>
       <div class="card col-6"><h3>${t.top_devices}</h3>${this._barList(topEntity, "device")}</div>
@@ -618,15 +730,65 @@ class HomeActivityPanel extends HTMLElement {
 
   _renderPeople(root) {
     const t = this._t;
-    const { topUser, recent, summary } = this._data;
+    const { recent, summary, usersProfile } = this._data;
     const userEvents = (recent||[]).filter((r) => r.trigger_type === "user");
+    const profiles = usersProfile || [];
     root.innerHTML = `
       ${this._tile(2, summary.n_user || 0, null, t.manual_period, "👆")}
       ${this._tile(1, summary.unique_users || 0, null, t.unique_users, "👥")}
-      <div class="card col-8"><h3>${t.top_users}</h3>${this._barList((topUser||[]).map(u=>({...u, key: u.user_name || u.key})), "plain")}</div>
+      ${this._tile(0, profiles.length ? profiles[0]?.n || 0 : 0, null, t.top_users, "🏆")}
+
+      <div class="card col-12">
+        <h3>${t.top_users}</h3>
+        ${profiles.length ? profiles.map((p) => this._userProfileCard(p)).join("") : `<div class="empty">${t.no_data_long}</div>`}
+      </div>
+
       <div class="card col-12"><h3>${t.recent_events} — ${t.tab_people}</h3>${this._eventsTable(userEvents.slice(0,100))}</div>
     `;
     this._wireSort();
+  }
+
+  _userProfileCard(p) {
+    const t = this._t;
+    const name = p.user_name || p.user_id || "—";
+    const initials = (name.match(/\b\w/g) || ["?"]).slice(0, 2).join("").toUpperCase();
+    const peakStr = p.peak_hour != null ? `${p.peak_hour}:00 (${p.peak_n})` : "—";
+    const ents = (p.top_entities || []).slice(0, 8);
+    const areas = (p.top_areas || []).slice(0, 5);
+    const maxE = Math.max(1, ...ents.map((e) => e.n));
+    const maxA = Math.max(1, ...areas.map((a) => a.n));
+    return `<div class="user-card">
+      <div class="user-head">
+        <div class="user-avatar">${initials}</div>
+        <div class="user-info">
+          <div class="user-name-big">${name}</div>
+          <div class="user-meta">${p.user_id || ""}</div>
+        </div>
+      </div>
+      <div class="user-stats">
+        <div class="user-stat"><div class="v">${p.n}</div><div class="l">${t.user_total}</div></div>
+        <div class="user-stat"><div class="v">${peakStr}</div><div class="l">${t.user_peak}</div></div>
+        <div class="user-stat"><div class="v">${ents.length}</div><div class="l">${t.user_top_devices}</div></div>
+      </div>
+      ${ents.length ? `
+      <div class="user-section-title">${t.user_top_devices}</div>
+      <div class="bars" style="margin-bottom:14px;">
+        ${ents.map((e, i) => {
+          const color = CHART[i % CHART.length];
+          const fname = e.friendly_name || e.entity_id;
+          const sub = e.area_name ? `${e.entity_id} · ${e.area_name}` : e.entity_id;
+          return `<div class="bar"><div class="fill" style="width:${(e.n/maxE)*100}%;background:linear-gradient(90deg,${color},${color}aa);--bar-glow:${color}88;"></div><div class="lbl"><div class="l"><div class="name-main">${fname}</div><div class="n2">${sub}</div></div><span class="v">${e.n}</span></div></div>`;
+        }).join("")}
+      </div>` : ""}
+      ${areas.length ? `
+      <div class="user-section-title">${t.user_top_rooms}</div>
+      <div class="bars">
+        ${areas.map((a, i) => {
+          const color = CHART[(i+3) % CHART.length];
+          return `<div class="bar"><div class="fill" style="width:${(a.n/maxA)*100}%;background:linear-gradient(90deg,${color},${color}aa);--bar-glow:${color}88;"></div><div class="lbl"><div class="l"><div class="name-main">${a.area_name || a.area_id}</div></div><span class="v">${a.n}</span></div></div>`;
+        }).join("")}
+      </div>` : ""}
+    </div>`;
   }
 
   _renderAuto(root) {
@@ -675,14 +837,80 @@ class HomeActivityPanel extends HTMLElement {
   _renderAnomalies(root) {
     const t = this._t;
     const a = this._data.anomalies || {};
-    const empty = !a.rapid_toggle?.length && !a.user_cancelled?.length && !a.duplicate_automations?.length && !a.night_activity?.length;
+    const empty = !a.rapid_toggle?.length && !a.user_cancelled?.length
+      && !a.duplicate_automations?.length && !a.night_activity?.length
+      && !a.dead_automations?.length && !a.low_impact_automations?.length
+      && !a.manual_after_auto?.length && !a.routine_candidates?.length;
     if (empty) { root.innerHTML = `<div class="card col-12 empty">${t.no_anomalies}</div>`; return; }
-    root.innerHTML = `
-      ${a.rapid_toggle?.length ? `<div class="card col-12"><h3>${t.anomaly_rapid}</h3>${a.rapid_toggle.map((r)=>{const dur=Math.round((r.last_ts-r.first_ts)/60); return `<div class="anomaly"><div class="a-title">${r.friendly_name||r.entity_id} — ${r.n} ${this._t_str("rapid_alert")} ${dur} ${this._t_str("minutes")}</div><div class="a-detail">${r.entity_id}${r.area_name?` · ${r.area_name}`:""}</div></div>`;}).join("")}</div>` : ""}
-      ${a.user_cancelled?.length ? `<div class="card col-12"><h3>${t.anomaly_cancelled}</h3>${a.user_cancelled.map((c)=>{const sec=c.auto_ts-c.user_ts; const params={user:c.user_name||"—",action1:this._label_service(c.user_service),auto:c.auto_name||c.auto_eid,action2:this._label_service(c.auto_service),sec}; return `<div class="anomaly"><div class="a-title">${c.friendly_name||c.entity_id}</div><div class="a-detail">${this._t_str("cancelled_alert", params)}</div></div>`;}).join("")}</div>` : ""}
-      ${a.duplicate_automations?.length ? `<div class="card col-12"><h3>${t.anomaly_dup}</h3>${this._dupAnomalies(a.duplicate_automations)}</div>` : ""}
-      ${a.night_activity?.length ? `<div class="card col-12"><h3>${t.anomaly_night}</h3>${a.night_activity.map((n)=>`<div class="anomaly night"><div class="a-title">${n.friendly_name||n.entity_id} — ${n.n} ${this._t_str("night_alert")}</div><div class="a-detail">${n.entity_id}${n.area_name?` · ${n.area_name}`:""}</div></div>`).join("")}</div>` : ""}
-    `;
+
+    const sections = [];
+
+    if (a.rapid_toggle?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_rapid}</h3>${a.rapid_toggle.map((r) => {
+        const dur = Math.round((r.last_ts - r.first_ts) / 60);
+        return `<div class="anomaly"><div class="a-title">${r.friendly_name || r.entity_id} — ${r.n} ${this._t_str("rapid_alert")} ${dur} ${this._t_str("minutes")}</div><div class="a-detail">${r.entity_id}${r.area_name ? ` · ${r.area_name}` : ""}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.user_cancelled?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_cancelled}</h3>${a.user_cancelled.map((c) => {
+        const sec = c.auto_ts - c.user_ts;
+        const params = { user: c.user_name || "—", action1: this._label_service(c.user_service), auto: c.auto_name || c.auto_eid, action2: this._label_service(c.auto_service), sec };
+        return `<div class="anomaly"><div class="a-title">${c.friendly_name || c.entity_id}</div><div class="a-detail">${this._t_str("cancelled_alert", params)}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.manual_after_auto?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_manual_after}</h3>${a.manual_after_auto.map((m) => {
+        const sec = m.user_ts - m.auto_ts;
+        const params = { auto: m.auto_name || m.auto_eid, user: m.user_name || "—", action1: this._label_service(m.auto_service), action2: this._label_service(m.user_service), sec };
+        return `<div class="anomaly"><div class="a-title">${m.friendly_name || m.entity_id}</div><div class="a-detail">${this._t_str("manual_after_text", params)}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.duplicate_automations?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_dup}</h3>${this._dupAnomalies(a.duplicate_automations)}</div>`);
+    }
+
+    if (a.dead_automations?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_dead}</h3>${a.dead_automations.map((d) => {
+        const days = Math.round((Date.now() / 1000 - d.last_seen) / 86400);
+        const params = { name: d.automation_name || d.entity_id, days };
+        return `<div class="anomaly night"><div class="a-title">${d.automation_name || d.entity_id}</div><div class="a-detail">${this._t_str("dead_automation_text", params)}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.low_impact_automations?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_low}</h3>${a.low_impact_automations.map((l) => {
+        const params = { name: l.automation_name || l.entity_id, n: l.n_runs };
+        return `<div class="anomaly night"><div class="a-title">${l.automation_name || l.entity_id}</div><div class="a-detail">${this._t_str("low_impact_text", params)}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.routine_candidates?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_routine}</h3>${a.routine_candidates.map((r) => {
+        const params = { user: r.user_name || "—", action: this._label_service(r.service), entity: r.friendly_name || r.entity_id, hour: r.hour, n: r.n };
+        return `<div class="anomaly" style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));color:#bbf7d0;border-left-color:#22c55e;border-color:rgba(34,197,94,.2);"><div class="a-title">💡 ${r.friendly_name || r.entity_id}</div><div class="a-detail">${this._t_str("automation_candidate_text", params)}</div></div>`;
+      }).join("")}</div>`);
+    }
+
+    if (a.night_activity?.length) {
+      sections.push(`<div class="card col-12"><h3>${t.anomaly_night}</h3>${a.night_activity.map((n) => `<div class="anomaly night"><div class="a-title">${n.friendly_name || n.entity_id} — ${n.n} ${this._t_str("night_alert")}</div><div class="a-detail">${n.entity_id}${n.area_name ? ` · ${n.area_name}` : ""}</div></div>`).join("")}</div>`);
+    }
+
+    root.innerHTML = sections.join("");
+  }
+
+  _heatmapChips() {
+    const t = this._t;
+    const chips = [
+      ["1h", t.hp_1h], ["3h", t.hp_3h], ["6h", t.hp_6h],
+      ["today", t.hp_today], ["yesterday", t.hp_yest],
+      ["7d", t.hp_7d], ["14d", t.p_14d], ["30d", t.hp_30d], ["90d", t.hp_90d],
+    ];
+    return `<div class="chips" data-role="heat-chips">${chips.map(([v, l]) =>
+      `<button class="chip ${this._heatPeriod === v ? "active" : ""}" data-heat="${v}">${l}</button>`
+    ).join("")}</div>`;
   }
 
   _dupAnomalies(rows) {

@@ -35,7 +35,8 @@ def _trigger(request: web.Request) -> str | None:
 def async_register_views(hass: HomeAssistant, store: ActivityStore) -> None:
     for v in (StatsView, EventsView, BreakdownView, SeriesView, PurgeView,
               SummaryView, HeatmapView, AutomationDetailView,
-              CompareView, InsightsView, AnomaliesView, RoomsView, EntityDetailView):
+              CompareView, InsightsView, AnomaliesView, RoomsView, EntityDetailView,
+              UsersProfileView):
         hass.http.register_view(v(store))
 
 
@@ -139,13 +140,33 @@ class SummaryView(_BaseView):
 
 
 class HeatmapView(_BaseView):
+    """Heatmap supports 'period' query param for fine-grained ranges."""
     url = f"{API_BASE}/heatmap"
     name = "api:user_activity_tracker:heatmap"
 
     async def get(self, request: web.Request) -> web.Response:
-        since = _since(request, default_days=30)
         tt = _trigger(request)
-        return self.json(await self.store.async_heatmap(since, tt))
+        period = request.query.get("period")
+        now = _now_utc()
+        until = None
+
+        if period == "1h":
+            since = int((now - timedelta(hours=1)).timestamp())
+        elif period == "3h":
+            since = int((now - timedelta(hours=3)).timestamp())
+        elif period == "6h":
+            since = int((now - timedelta(hours=6)).timestamp())
+        elif period == "today":
+            since = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+        elif period == "yesterday":
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            since = int((today_start - timedelta(days=1)).timestamp())
+            until = int(today_start.timestamp())
+        else:
+            # fall back to days param
+            since = _since(request, default_days=30)
+
+        return self.json(await self.store.async_heatmap(since, tt, until))
 
 
 class AutomationDetailView(_BaseView):
@@ -358,12 +379,50 @@ class AnomaliesView(_BaseView):
 
     async def get(self, request: web.Request) -> web.Response:
         since = _since(request, default_days=14)
+        # threshold for "dead": automations not seen in last `dead_days` days
+        try:
+            dead_days = int(request.query.get("dead_days", "7"))
+        except ValueError:
+            dead_days = 7
+        dead_threshold = int((datetime.now(tz=timezone.utc) - timedelta(days=dead_days)).timestamp())
         return self.json({
             "rapid_toggle": await self.store.async_rapid_toggle(since),
             "user_cancelled": await self.store.async_user_cancelled(since),
             "duplicate_automations": await self.store.async_duplicate_automations(since),
             "night_activity": await self.store.async_night_activity(since),
+            "dead_automations": await self.store.async_dead_automations(dead_threshold),
+            "low_impact_automations": await self.store.async_low_impact_automations(since),
+            "manual_after_auto": await self.store.async_manual_after_auto(since),
+            "routine_candidates": await self.store.async_routine_candidates(since),
         })
+
+
+class UsersProfileView(_BaseView):
+    """Returns a profile per user: top entities, top rooms, peak hour."""
+    url = f"{API_BASE}/users_profile"
+    name = "api:user_activity_tracker:users_profile"
+
+    async def get(self, request: web.Request) -> web.Response:
+        since = _since(request, default_days=14)
+        users = await self.store.async_breakdown(since, "user_id", 10)
+        result = []
+        for u in users:
+            uid = u.get("key")
+            if not uid:
+                continue
+            top_ents = await self.store.async_user_top_entities(since, uid, 8)
+            top_areas = await self.store.async_user_top_areas(since, uid, 5)
+            peak = await self.store.async_user_peak_hour(since, uid)
+            result.append({
+                "user_id": uid,
+                "user_name": u.get("user_name"),
+                "n": u.get("n", 0),
+                "top_entities": top_ents,
+                "top_areas": top_areas,
+                "peak_hour": peak.get("hour") if peak else None,
+                "peak_n": peak.get("n") if peak else None,
+            })
+        return self.json(result)
 
 
 class PurgeView(_BaseView):
