@@ -41,6 +41,7 @@ const I18N = {
     dead_automation_text: "{name} last fired {days}d ago",
     low_impact_text: "{name} ran {n} times — only touches 1 entity, 1 service",
     manual_after_text: "Automation {auto} did {action1}, {user} did {action2} {sec}s later",
+    avg_runs_per_automation: "avg runs / automation", most_active_label: "most active", runs_unit: "runs",
     th_time: "Time", th_user: "User", th_entity: "Device",
     th_service: "Action", th_source: "Source", th_trigger: "Trigger", th_room: "Room",
     by_user: "by", at_time: "at", in_room: "in",
@@ -115,6 +116,7 @@ const I18N = {
     dead_automation_text: "{name} последний раз сработала {days} дн. назад",
     low_impact_text: "{name} запускалась {n} раз — управляет только 1 устройством, 1 сервис",
     manual_after_text: "Автоматизация {auto} сделала {action1}, {user} сделал {action2} через {sec}с",
+    avg_runs_per_automation: "среднее запусков / авто", most_active_label: "самая активная", runs_unit: "запусков",
     th_time: "Время", th_user: "Юзер", th_entity: "Устройство",
     th_service: "Действие", th_source: "Источник", th_trigger: "Триггер", th_room: "Комната",
     by_user: "от", at_time: "в", in_room: "в",
@@ -189,6 +191,7 @@ const I18N = {
     dead_automation_text: "{name} востаннє спрацювала {days} дн. тому",
     low_impact_text: "{name} спрацювала {n} разів — керує лише 1 пристроєм, 1 сервіс",
     manual_after_text: "Автоматизація {auto} зробила {action1}, {user} зробив {action2} через {sec}с",
+    avg_runs_per_automation: "середньо запусків / авто", most_active_label: "найактивніша", runs_unit: "запусків",
     th_time: "Час", th_user: "Юзер", th_entity: "Пристрій",
     th_service: "Дія", th_source: "Джерело", th_trigger: "Тригер", th_room: "Кімната",
     by_user: "від", at_time: "о", in_room: "у",
@@ -390,7 +393,7 @@ class HomeActivityPanel extends HTMLElement {
           content: ""; position: absolute; bottom: -1px; left: 12px; right: 12px; height: 2px;
           background: linear-gradient(90deg, #60a5fa, #c084fc, #f472b6); border-radius: 2px;
         }
-        main { padding: 20px 28px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+        main { padding: 20px 28px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
         .card {
           background: linear-gradient(160deg, rgba(30,38,54,0.7) 0%, rgba(20,26,40,0.7) 100%);
           border: 1px solid rgba(255,255,255,0.06);
@@ -794,15 +797,40 @@ class HomeActivityPanel extends HTMLElement {
   _renderAuto(root) {
     const t = this._t;
     const { topAuto, recent, summary, anomalies } = this._data;
-    const autoEvents = (recent||[]).filter((r) => ["automation","script"].includes(r.trigger_type));
+    const autoEvents = (recent || []).filter((r) => ["automation", "script"].includes(r.trigger_type));
+    const nAuto = summary.n_auto || 0;
+    const uniq = summary.unique_triggers || 0;
+    const avgRuns = uniq > 0 ? (nAuto / uniq).toFixed(1) : "0";
+    const topAutoRow = (topAuto || [])[0];
+    const topAutoLabel = topAutoRow ? (topAutoRow.automation_name || topAutoRow.key) : "—";
+    const topAutoN = topAutoRow ? topAutoRow.n : 0;
+
+    // Truncate long automation names for the tile
+    const topShort = topAutoLabel.length > 18 ? topAutoLabel.slice(0, 16) + "…" : topAutoLabel;
+
     root.innerHTML = `
-      ${this._tile(3, summary.n_auto || 0, null, t.auto_period, "🤖")}
-      ${this._tile(0, summary.unique_triggers || 0, null, t.unique_triggers, "⚙️")}
-      <div class="card col-8"><h3>${t.top_automations}</h3>${this._barList((topAuto||[]).map(a=>({...a, friendly_name: a.automation_name})), "auto")}</div>
+      ${this._tile(3, nAuto, null, t.auto_period, "🤖", "col-3")}
+      ${this._tile(0, uniq, null, t.unique_triggers, "⚙️", "col-3")}
+      ${this._tile(2, avgRuns, null, t.avg_runs_per_automation, "📊", "col-3")}
+      ${this._tileText(1, topShort, "🏆", t.most_active_label, topAutoN ? `${topAutoN} ${t.runs_unit}` : null)}
+
+      <div class="card col-12"><h3>${t.top_automations}</h3>${this._barList((topAuto || []).map(a => ({...a, friendly_name: a.automation_name})), "auto")}</div>
+
       ${anomalies?.duplicate_automations?.length ? `<div class="card col-12"><h3>${t.anomaly_dup}</h3>${this._dupAnomalies(anomalies.duplicate_automations)}</div>` : ""}
-      <div class="card col-12"><h3>${t.recent_events} — ${t.tab_auto}</h3>${this._eventsTable(autoEvents.slice(0,100))}</div>
+
+      <div class="card col-12"><h3>${t.recent_events} — ${t.tab_auto}</h3>${this._eventsTable(autoEvents.slice(0, 100))}</div>
     `;
     this._wireSort();
+  }
+
+  _tileText(idx, val, icon, label, sub) {
+    const sch = TILES[idx % TILES.length];
+    return `<div class="tile col-3" style="--tile-bg:${sch.bg};--tile-border:${sch.border};--tile-glow:${sch.glow};--tile-text:${sch.text}">
+      <div class="tile-icon">${icon}</div>
+      <div class="tile-value" style="font-size:1.35rem;line-height:1.15;color:${sch.text};">${val}</div>
+      <div class="tile-label">${label}</div>
+      ${sub ? `<div class="tile-delta delta-flat">${sub}</div>` : ""}
+    </div>`;
   }
 
   _renderDevices(root) {
@@ -928,9 +956,10 @@ class HomeActivityPanel extends HTMLElement {
   }
 
   // ===== TILE (KPI) =====
-  _tile(idx, val, prev, label, icon) {
+  _tile(idx, val, prev, label, icon, col) {
     const t = this._t;
     const sch = TILES[idx % TILES.length];
+    const c = col || "col-2";
     let delta = "";
     if (prev != null) {
       if (prev === 0 && val === 0) delta = `<div class="tile-delta delta-flat">— ${t.delta_same}</div>`;
@@ -943,7 +972,7 @@ class HomeActivityPanel extends HTMLElement {
         else delta = `<div class="tile-delta delta-flat">${t.delta_same}</div>`;
       }
     }
-    return `<div class="tile col-2" style="--tile-bg:${sch.bg};--tile-border:${sch.border};--tile-glow:${sch.glow};--tile-text:${sch.text}">
+    return `<div class="tile ${c}" style="--tile-bg:${sch.bg};--tile-border:${sch.border};--tile-glow:${sch.glow};--tile-text:${sch.text}">
       <div class="tile-icon">${icon}</div>
       <div class="tile-value">${val}</div>
       <div class="tile-label">${label}</div>
