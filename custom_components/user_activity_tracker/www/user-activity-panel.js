@@ -90,18 +90,27 @@ const I18N = {
   },
 };
 
-const PALETTE = ["#ff6b6b", "#fab005", "#40c057", "#4dabf7", "#9775fa", "#f06595", "#20c997", "#fd7e14", "#15aabf", "#e64980"];
-const HEAT = ["transparent", "#c3fae8", "#69db7c", "#fab005", "#fd7e14", "#fa5252"];
+// Soft modern palette — "digital lavender / peach fuzz / sage" 2026 trend
+// (Tailwind 300/400 family, pastel but contemporary, not "grandma pastel")
+const PALETTE = [
+  "#fda4af", "#fcd34d", "#86efac", "#7dd3fc", "#c4b5fd",
+  "#f9a8d4", "#5eead4", "#fdba74", "#67e8f9", "#d8b4fe",
+];
+const HEAT = ["transparent", "#e0e7ff", "#bae6fd", "#fde68a", "#fdba74", "#fda4af"];
 const ACCENTS = {
-  today: "#ff6b6b", week: "#4dabf7", month: "#9775fa",
-  ent: "#20c997", usr: "#fab005", avg: "#f06595",
-  trig: "#15aabf",
+  today: "#fda4af",   // dusty rose
+  week:  "#7dd3fc",   // soft sky
+  month: "#c4b5fd",   // digital lavender
+  ent:   "#86efac",   // soft sage
+  usr:   "#fcd34d",   // muted amber
+  avg:   "#f9a8d4",   // soft pink
+  trig:  "#5eead4",   // pale teal
 };
 const TRIGGER_COLORS = {
-  user: "#4dabf7",
-  automation: "#9775fa",
-  script: "#f06595",
-  system: "#868e96",
+  user:       "#7dd3fc",
+  automation: "#c4b5fd",
+  script:     "#f9a8d4",
+  system:     "#cbd5e1",
 };
 
 class UserActivityPanel extends HTMLElement {
@@ -166,20 +175,22 @@ class UserActivityPanel extends HTMLElement {
       <style>
         :host { display:block; height:100%; background: var(--primary-background-color); color: var(--primary-text-color); font-family: var(--paper-font-body1_-_font-family); }
         header { padding: 12px 24px 0;
-                 background: linear-gradient(135deg, #4dabf7 0%, #9775fa 50%, #f06595 100%);
-                 color: #fff; position: sticky; top:0; z-index:5;
-                 box-shadow: 0 2px 12px rgba(0,0,0,.15);}
+                 background: linear-gradient(135deg, #c7d2fe 0%, #ddd6fe 35%, #fbcfe8 70%, #fed7aa 100%);
+                 color: #1f2937; position: sticky; top:0; z-index:5;
+                 box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+                 border-bottom: 1px solid rgba(15,23,42,.06);}
         .top { display:flex; align-items:center; gap:16px; padding-bottom: 12px;}
-        h1 { margin:0; font-size: 1.25rem; font-weight: 600; flex:1; letter-spacing: 0.3px;}
-        select { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.4);
-                 background: rgba(255,255,255,.15); color: #fff; font-weight: 500; cursor: pointer; backdrop-filter: blur(4px);}
-        select option { color: #222; }
+        h1 { margin:0; font-size: 1.25rem; font-weight: 600; flex:1; letter-spacing: 0.2px; color:#1f2937;}
+        select { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(15,23,42,.12);
+                 background: rgba(255,255,255,.55); color: #1f2937; font-weight: 500; cursor: pointer;
+                 backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);}
+        select option { color: #1f2937; }
         .tabs { display:flex; gap: 4px;}
-        .tab { padding: 10px 18px; cursor: pointer; border: none; background: transparent; color: rgba(255,255,255,.75);
-               font-size: 0.92rem; font-weight: 600; border-bottom: 3px solid transparent; transition: all .15s;
-               text-transform: uppercase; letter-spacing: 0.5px;}
-        .tab:hover { color: #fff; background: rgba(255,255,255,.08);}
-        .tab.active { color: #fff; border-bottom-color: #fff;}
+        .tab { padding: 10px 18px; cursor: pointer; border: none; background: transparent; color: rgba(31,41,55,.55);
+               font-size: 0.88rem; font-weight: 600; border-bottom: 2px solid transparent; transition: all .15s;
+               letter-spacing: 0.3px;}
+        .tab:hover { color: #1f2937; background: rgba(255,255,255,.35);}
+        .tab.active { color: #1f2937; border-bottom-color: #6366f1;}
         main { padding: 16px 24px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr);}
         .card { background: var(--card-background-color); border-radius: 14px; padding: 16px;
                 box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow:hidden; min-height: 60px;
@@ -208,20 +219,20 @@ class UserActivityPanel extends HTMLElement {
         tr:hover td { background: var(--secondary-background-color);}
         .bars { display:flex; flex-direction:column; gap:6px;}
         .bar { position:relative; height: 24px; background: var(--secondary-background-color); border-radius: 6px; overflow:hidden; font-size: 0.82rem;}
-        .bar > .fill { position:absolute; left:0; top:0; bottom:0; opacity: 0.85; border-radius: 6px;}
-        .bar > .lbl { position:relative; z-index:1; padding: 3px 10px; display:flex; justify-content:space-between; line-height: 18px; color:#fff; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,.3);}
+        .bar > .fill { position:absolute; left:0; top:0; bottom:0; opacity: 0.55; border-radius: 6px;}
+        .bar > .lbl { position:relative; z-index:1; padding: 3px 10px; display:flex; justify-content:space-between; line-height: 18px; color: var(--primary-text-color); font-weight: 500;}
         .err { color: #fa5252; padding: 8px; font-weight: 500;}
         .ts { color: var(--secondary-text-color); font-size: 0.75rem; white-space: nowrap;}
         .empty { color: var(--secondary-text-color); font-size: 0.85rem; padding: 8px 0; font-style: italic;}
         .heat { display:grid; grid-template-columns: 36px repeat(24, 1fr); grid-auto-rows: 26px; gap: 3px; font-size: 0.7rem;}
         .heat .hh { color: var(--secondary-text-color); display:flex; align-items:center; justify-content:center; font-weight: 600;}
         .heat .cell { border-radius: 4px; display:flex; align-items:center; justify-content:center; color: rgba(0,0,0,.85); font-weight: 600;}
-        .pill { display:inline-block; padding: 2px 8px; border-radius: 10px; color:#fff; font-size: 0.7rem; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.25);}
-        .pill-user { background: linear-gradient(135deg,#4dabf7,#1c7ed6);}
-        .pill-automation { background: linear-gradient(135deg,#9775fa,#7048e8);}
-        .pill-script { background: linear-gradient(135deg,#f06595,#d6336c);}
-        .pill-system { background: linear-gradient(135deg,#868e96,#495057);}
-        .recent-entity { font-size: 1.4rem; font-weight: 700; background: linear-gradient(135deg, #ff6b6b, #fab005); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 6px; word-break: break-all;}
+        .pill { display:inline-block; padding: 2px 9px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;}
+        .pill-user       { background: #dbeafe; color: #1d4ed8;}
+        .pill-automation { background: #ede9fe; color: #6d28d9;}
+        .pill-script     { background: #fce7f3; color: #be185d;}
+        .pill-system     { background: #e2e8f0; color: #475569;}
+        .recent-entity { font-size: 1.4rem; font-weight: 700; background: linear-gradient(135deg, #818cf8, #f472b6); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 6px; word-break: break-all;}
         .hint { font-size: 0.75rem; color: var(--secondary-text-color); text-align: right; margin-bottom: 6px;}
       </style>
       <header>
