@@ -27,6 +27,8 @@ def async_register_views(hass: HomeAssistant, store: ActivityStore) -> None:
     hass.http.register_view(BreakdownView(store))
     hass.http.register_view(SeriesView(store))
     hass.http.register_view(PurgeView(store))
+    hass.http.register_view(SummaryView(store))
+    hass.http.register_view(HeatmapView(store))
 
 
 class _BaseView(HomeAssistantView):
@@ -107,3 +109,21 @@ class PurgeView(_BaseView):
         days = int(body.get("keep_days", 365))
         deleted = await self.store.async_purge_older_than(days)
         return self.json({"deleted": deleted, "kept_days": days})
+
+
+class SummaryView(_BaseView):
+    url = f"{API_BASE}/summary"
+    name = "api:user_activity_tracker:summary"
+
+    async def get(self, request: web.Request) -> web.Response:
+        since = _since_from_query(request)
+        return self.json(await self.store.async_summary(since))
+
+
+class HeatmapView(_BaseView):
+    url = f"{API_BASE}/heatmap"
+    name = "api:user_activity_tracker:heatmap"
+
+    async def get(self, request: web.Request) -> web.Response:
+        since = _since_from_query(request, default_days=30)
+        return self.json(await self.store.async_heatmap(since))

@@ -186,6 +186,22 @@ class ActivityStore:
     ) -> list[dict]:
         if field not in ("entity_id", "domain", "user_id", "service"):
             field = "entity_id"
+        # Special-case user_id: also surface user_name (latest known)
+        if field == "user_id":
+            return await self.hass.async_add_executor_job(
+                self._query,
+                """
+                SELECT user_id AS key,
+                       MAX(user_name) AS user_name,
+                       COUNT(*) AS n
+                FROM events
+                WHERE ts >= ? AND user_id IS NOT NULL
+                GROUP BY user_id
+                ORDER BY n DESC
+                LIMIT ?
+                """,
+                (since_ts, limit),
+            )
         return await self.hass.async_add_executor_job(
             self._query,
             f"""
@@ -197,6 +213,40 @@ class ActivityStore:
             LIMIT ?
             """,
             (since_ts, limit),
+        )
+
+    async def async_summary(self, since_ts: int) -> dict:
+        rows = await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT
+                COUNT(*)                          AS total,
+                COUNT(DISTINCT entity_id)         AS unique_entities,
+                COUNT(DISTINCT user_id)           AS unique_users,
+                COUNT(DISTINCT domain)            AS unique_domains,
+                MIN(ts)                           AS first_ts,
+                MAX(ts)                           AS last_ts
+            FROM events
+            WHERE ts >= ?
+            """,
+            (since_ts,),
+        )
+        return rows[0] if rows else {}
+
+    async def async_heatmap(self, since_ts: int) -> list[dict]:
+        """Return events grouped by (weekday, hour) — strftime: %w 0=Sun, %H 00-23."""
+        return await self.hass.async_add_executor_job(
+            self._query,
+            """
+            SELECT
+                CAST(strftime('%w', datetime(ts, 'unixepoch', 'localtime')) AS INT) AS dow,
+                CAST(strftime('%H', datetime(ts, 'unixepoch', 'localtime')) AS INT) AS hour,
+                COUNT(*) AS n
+            FROM events
+            WHERE ts >= ?
+            GROUP BY dow, hour
+            """,
+            (since_ts,),
         )
 
     async def async_purge_older_than(self, days: int) -> int:
