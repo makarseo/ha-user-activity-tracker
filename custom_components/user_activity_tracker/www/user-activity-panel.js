@@ -1050,10 +1050,22 @@ class HomeActivityPanel extends HTMLElement {
   // ===== OVERVIEW (behavioral analytics) =====
   _renderOverview(root) {
     const t = this._t;
-    const { compare, summary, series, sources, insights, anomalies, rooms, topEntity, topAuto, topUser, recent } = this._data;
+    const { compare, summary, series, sources, insights, anomalies, rooms, topEntity, topAuto, topUser, recent, health } = this._data;
     const cur = compare?.current || {};
     const prv = compare?.previous || {};
-    const a = anomalies || {};
+    // Prefer /health data on Overview (since /anomalies is lazy-loaded for the Anomalies tab).
+    // /health returns top 3 of each anomaly type via anomaly_top, and full counts via anomaly_counts.
+    const h = health || {};
+    const top = h.anomaly_top || {};
+    const counts = h.anomaly_counts || {};
+    const a = anomalies || {
+      rapid_toggle: top.rapid || [],
+      duplicate_automations: top.duplicates || [],
+      user_cancelled: top.cancelled || [],
+      manual_after_auto: [],
+      dead_automations: [],
+      night_activity: [],
+    };
 
     // ── Compute derived signals ──
     const now = Math.floor(Date.now() / 1000);
@@ -1065,12 +1077,12 @@ class HomeActivityPanel extends HTMLElement {
     else if (minsSinceLast < 60) { houseState = "ТИХО"; houseSev = "info"; }
     else { houseState = "СПИТ"; houseSev = "muted"; }
 
-    const anomCount =
-      (a.rapid_toggle?.length || 0) +
-      (a.user_cancelled?.length || 0) +
-      (a.duplicate_automations?.length || 0) +
-      (a.dead_automations?.length || 0) +
-      (a.manual_after_auto?.length || 0);
+    // Counts: prefer /health full counts (real numbers, not just top-3 truncated lists)
+    const anomCount = anomalies
+      ? ((a.rapid_toggle?.length || 0) + (a.user_cancelled?.length || 0) +
+         (a.duplicate_automations?.length || 0) + (a.dead_automations?.length || 0) +
+         (a.manual_after_auto?.length || 0))
+      : ((counts.critical || 0) + (counts.warning || 0));
     let autoState, autoSev;
     if (anomCount === 0) { autoState = "СТАБИЛЬНО"; autoSev = "good"; }
     else if (anomCount <= 5) { autoState = "ВНИМАНИЕ"; autoSev = "warn"; }
