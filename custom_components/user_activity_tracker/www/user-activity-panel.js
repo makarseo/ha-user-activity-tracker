@@ -945,6 +945,95 @@ class HomeActivityPanel extends HTMLElement {
           font-size: 0.95rem;
           font-weight: 600;
         }
+
+        /* === Status badges (per severity) === */
+        .status-badge {
+          display: inline-block; padding: 3px 10px; border-radius: 10px;
+          font-size: 0.72rem; font-weight: 600; letter-spacing: 0.2px;
+          border: 1px solid transparent;
+        }
+        .status-good { background: rgba(52,211,153,0.15); color: #6ee7b7; border-color: rgba(52,211,153,0.35);}
+        .status-info { background: rgba(96,165,250,0.15); color: #93c5fd; border-color: rgba(96,165,250,0.35);}
+        .status-warn { background: rgba(251,191,36,0.15); color: #fde68a; border-color: rgba(251,191,36,0.35);}
+        .status-bad  { background: rgba(248,113,113,0.15); color: #fecaca; border-color: rgba(248,113,113,0.35);}
+        .status-muted{ background: rgba(148,163,184,0.13); color: #cbd5e1; border-color: rgba(148,163,184,0.25);}
+
+        /* === Entity card (used in Automations / Devices / Rooms tabs) === */
+        .entity-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-left: 4px solid #64748b;
+          border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+        }
+        .entity-card--good  { border-left-color: #34d399; }
+        .entity-card--info  { border-left-color: #60a5fa; }
+        .entity-card--warn  { border-left-color: #fbbf24; }
+        .entity-card--bad   { border-left-color: #f87171; background: rgba(248,113,113,0.04); }
+        .entity-card--muted { border-left-color: #94a3b8; opacity: 0.75; }
+        .entity-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px;}
+        .entity-info { flex: 1; min-width: 0; }
+        .entity-name { font-weight: 700; font-size: 1rem; color: #fff; }
+        .entity-id { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; font-family: ui-monospace,monospace;}
+        .entity-score { font-size: 2rem; font-weight: 800; line-height: 1; flex-shrink: 0;}
+        .entity-stats {
+          display: flex; gap: 16px; padding: 8px 0;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          flex-wrap: wrap;
+        }
+        .entity-stat { display: flex; flex-direction: column; gap: 2px; }
+        .entity-stat .v { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; }
+        .entity-stat .l { font-size: 0.66rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px;}
+
+        /* === User card (People tab) === */
+        .user-card--good  { border-left: 4px solid #34d399; }
+        .user-card--info  { border-left: 4px solid #60a5fa; }
+        .user-card--muted { border-left: 4px solid #94a3b8; opacity: 0.85; }
+        .user-card .user-stats { gap: 18px; }
+        .user-card .user-stat .v { font-size: 1.05rem; }
+        .user-card .ai-block { margin-top: 6px; margin-bottom: 12px;}
+
+        /* === AI line (used everywhere) === */
+        .ai-line {
+          font-size: 0.85rem; line-height: 1.45; color: #cbd5e1;
+          padding: 4px 0;
+        }
+        .ai-block .ai-line { padding: 2px 0; }
+
+        /* === Severity summary (Anomalies tab) === */
+        .severity-summary {
+          display: flex; gap: 10px; flex-wrap: wrap;
+          padding: 0; margin: 0;
+          grid-column: span 12;
+        }
+        .sev-pill {
+          padding: 8px 16px; border-radius: 12px; font-weight: 700; font-size: 0.85rem;
+          border: 1px solid transparent;
+        }
+        .sev-pill--bad  { background: rgba(248,113,113,0.15); color: #fecaca; border-color: rgba(248,113,113,0.35);}
+        .sev-pill--warn { background: rgba(251,191,36,0.15); color: #fde68a; border-color: rgba(251,191,36,0.35);}
+        .sev-pill--info { background: rgba(96,165,250,0.15); color: #93c5fd; border-color: rgba(96,165,250,0.35);}
+        .sev-pill--good { background: rgba(52,211,153,0.15); color: #6ee7b7; border-color: rgba(52,211,153,0.35);}
+
+        /* Severity blocks */
+        .sev-block { padding: 18px; }
+        .sev-block--bad  { border-top: 3px solid #f87171; }
+        .sev-block--warn { border-top: 3px solid #fbbf24; }
+        .sev-block--info { border-top: 3px solid #60a5fa; }
+        .sev-block--good { border-top: 3px solid #34d399; }
+
+        .anom-item {
+          padding: 10px 14px; border-radius: 10px; margin-bottom: 6px;
+          background: rgba(255,255,255,0.02); border-left: 3px solid #64748b;
+        }
+        .anom-item--bad  { border-left-color: #f87171; background: rgba(248,113,113,0.06);}
+        .anom-item--warn { border-left-color: #fbbf24; background: rgba(251,191,36,0.05);}
+        .anom-item--info { border-left-color: #60a5fa; background: rgba(96,165,250,0.05);}
+        .anom-item--good { border-left-color: #34d399; background: rgba(52,211,153,0.06);}
+        .anom-item__title { font-weight: 700; font-size: 0.9rem; color: #fff; margin-bottom: 3px;}
+        .anom-item__text  { font-size: 0.82rem; color: #cbd5e1; line-height: 1.4;}
+        .anom-item__sub   { font-size: 0.72rem; color: #94a3b8; margin-top: 4px; font-style: italic;}
+
       </style>
       <header>
         <div class="top">
@@ -1345,22 +1434,74 @@ class HomeActivityPanel extends HTMLElement {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  // ===== PEOPLE — behavioral patterns ===========================
   _renderPeople(root) {
     const t = this._t;
-    const { recent, summary, usersProfile } = this._data;
-    const userEvents = (recent||[]).filter((r) => r.trigger_type === "user");
-    const profiles = usersProfile || [];
+    const profiles = this._data.usersProfile || [];
+    const recent = this._data.recent || [];
+    const summary = this._data.summary || {};
+
+    if (!profiles.length) {
+      root.innerHTML = `<div class="card col-12 empty">${t.no_data_long}</div>`;
+      return;
+    }
+
+    // Build per-user enrichments from `recent`
+    const profilesEnriched = profiles.map((p) => {
+      const userEvents = recent.filter(r => (r.user_id === p.user_id) || (p.user_id == null && r.user_name === p.user_name));
+      const manualEvents = userEvents.filter(r => r.trigger_type === "user");
+      const overrodeAuto = recent.filter(r =>
+        r.trigger_type === "user" &&
+        (r.user_id === p.user_id || r.user_name === p.user_name)
+      ).length;
+      const totalUserEvents = manualEvents.length;
+      // Derive sleep/wake heuristic: earliest morning user event hour, latest evening
+      let earliest = null, latest = null;
+      for (const e of manualEvents) {
+        const hour = new Date(e.ts * 1000).getHours();
+        if (hour >= 4 && hour <= 12 && (earliest == null || hour < earliest)) earliest = hour;
+        if (hour >= 18 || hour <= 3) {
+          const adj = hour < 4 ? hour + 24 : hour;
+          if (latest == null || adj > latest) latest = adj;
+        }
+      }
+      // Behavioral score: consistency (# unique hours) + activity level
+      const uniqueHours = new Set(manualEvents.map(e => new Date(e.ts*1000).getHours())).size;
+      let bScore = Math.min(100, Math.round(uniqueHours * 8 + Math.min(40, totalUserEvents)));
+      const verdict = bScore >= 70 ? "Активный" : (bScore >= 40 ? "Умеренный" : "Тихий");
+      const sev = bScore >= 70 ? "good" : (bScore >= 40 ? "info" : "muted");
+      // AI insight
+      const insights = [];
+      if (p.peak_hour != null) {
+        const period = p.peak_hour < 12 ? "утром" : (p.peak_hour < 18 ? "днём" : "вечером");
+        insights.push(`Пик активности — ${period} (${p.peak_hour}:00, ${p.peak_n}× за период)`);
+      }
+      if ((p.top_entities||[]).length > 0) {
+        const topEnt = p.top_entities[0];
+        insights.push(`Чаще всего управляет: <b>${topEnt.friendly_name || topEnt.entity_id}</b>`);
+      }
+      if ((p.top_areas||[]).length > 0) {
+        insights.push(`Любимая комната — <b>${p.top_areas[0].area_name || p.top_areas[0].area_id}</b>`);
+      }
+      return { ...p, bScore, verdict, sev, earliest, latest, insights, totalUserEvents };
+    });
+
+    // Comparison summary at top
+    const totalManual = summary.n_user || 0;
     root.innerHTML = `
-      ${this._tile(2, summary.n_user || 0, null, t.manual_period, "👆")}
-      ${this._tile(1, summary.unique_users || 0, null, t.unique_users, "👥")}
-      ${this._tile(0, profiles.length ? profiles[0]?.n || 0 : 0, null, t.top_users, "🏆")}
+      ${this._tile(2, totalManual, null, "ручных действий", "👆")}
+      ${this._tile(1, profilesEnriched.length, null, "активных юзеров", "👥")}
+      ${this._tile(0, (profilesEnriched.sort((a,b) => b.bScore - a.bScore)[0]?.user_name) || "—", null, "самый активный", "🏆")}
 
       <div class="card col-12">
-        <h3>${t.top_users}</h3>
-        ${profiles.length ? profiles.map((p) => this._userProfileCard(p)).join("") : `<div class="empty">${t.no_data_long}</div>`}
+        <h3>👥 Профили пользователей <span class="sub">поведенческая аналитика</span></h3>
+        ${profilesEnriched.map(p => this._userProfileCard(p)).join("")}
       </div>
 
-      <div class="card col-12"><h3>${t.recent_events} — ${t.tab_people}</h3>${this._eventsTable(userEvents.slice(0,100))}</div>
+      <details class="card col-12 details-block">
+        <summary><h3 style="display:inline-block;margin:0">📜 Только ручные действия</h3></summary>
+        <div style="margin-top:14px">${this._eventsTable(recent.filter(r => r.trigger_type === "user").slice(0,100))}</div>
+      </details>
     `;
     this._wireSort();
   }
@@ -1369,113 +1510,400 @@ class HomeActivityPanel extends HTMLElement {
     const t = this._t;
     const name = p.user_name || p.user_id || "—";
     const initials = (name.match(/\b\w/g) || ["?"]).slice(0, 2).join("").toUpperCase();
-    const peakStr = p.peak_hour != null ? `${p.peak_hour}:00 (${p.peak_n})` : "—";
-    const ents = (p.top_entities || []).slice(0, 8);
-    const areas = (p.top_areas || []).slice(0, 5);
-    const maxE = Math.max(1, ...ents.map((e) => e.n));
-    const maxA = Math.max(1, ...areas.map((a) => a.n));
-    return `<div class="user-card">
+    const ents = (p.top_entities || []).slice(0, 6);
+    const areas = (p.top_areas || []).slice(0, 4);
+    const maxE = Math.max(1, ...ents.map(e => e.n));
+    const wakeStr = p.earliest != null ? `${String(p.earliest).padStart(2,"0")}:00` : "—";
+    const sleepStr = p.latest != null ? `${String(p.latest % 24).padStart(2,"0")}:00` : "—";
+
+    return `<div class="user-card user-card--${p.sev}">
       <div class="user-head">
         <div class="user-avatar">${initials}</div>
         <div class="user-info">
           <div class="user-name-big">${name}</div>
-          <div class="user-meta">${p.user_id || ""}</div>
+          <div class="user-meta"><span class="status-badge status-${p.sev}">${p.verdict}</span> · score ${p.bScore}/100</div>
         </div>
+        <div class="user-score" style="font-size:1.6rem;font-weight:800;color:${p.sev==="good"?"#34d399":p.sev==="info"?"#60a5fa":"#94a3b8"}">${p.bScore}</div>
       </div>
+
       <div class="user-stats">
-        <div class="user-stat"><div class="v">${p.n}</div><div class="l">${t.user_total}</div></div>
-        <div class="user-stat"><div class="v">${peakStr}</div><div class="l">${t.user_peak}</div></div>
-        <div class="user-stat"><div class="v">${ents.length}</div><div class="l">${t.user_top_devices}</div></div>
+        <div class="user-stat"><div class="v">${p.n}</div><div class="l">всего</div></div>
+        <div class="user-stat"><div class="v">${p.totalUserEvents}</div><div class="l">ручных</div></div>
+        <div class="user-stat"><div class="v">${wakeStr}</div><div class="l">первое утром</div></div>
+        <div class="user-stat"><div class="v">${sleepStr}</div><div class="l">последнее вечером</div></div>
+        <div class="user-stat"><div class="v">${ents.length}</div><div class="l">устройств</div></div>
       </div>
+
+      ${p.insights.length ? `<div class="ai-block">${p.insights.map(i => `<div class="ai-line">💡 ${i}</div>`).join("")}</div>` : ""}
+
       ${ents.length ? `
-      <div class="user-section-title">${t.user_top_devices}</div>
-      <div class="bars" style="margin-bottom:14px;">
-        ${ents.map((e, i) => {
-          const color = CHART[i % CHART.length];
-          const fname = e.friendly_name || e.entity_id;
-          const sub = e.area_name ? `${e.entity_id} · ${e.area_name}` : e.entity_id;
-          return `<div class="bar"><div class="fill" style="width:${(e.n/maxE)*100}%;background:linear-gradient(90deg,${color},${color}aa);--bar-glow:${color}88;"></div><div class="lbl"><div class="l"><div class="name-main">${fname}</div><div class="n2">${sub}</div></div><span class="v">${e.n}</span></div></div>`;
+      <div class="user-section-title">ТОП УСТРОЙСТВ</div>
+      <div class="bars" style="margin-bottom:12px;">
+        ${ents.map((e,i) => {
+          const c = CHART[i % CHART.length];
+          return `<div class="bar"><div class="fill" style="width:${(e.n/maxE)*100}%;background:linear-gradient(90deg,${c},${c}aa);--bar-glow:${c}88;"></div><div class="lbl"><div class="l"><div class="name-main">${e.friendly_name || e.entity_id}</div><div class="n2">${e.area_name || e.entity_id}</div></div><span class="v">${e.n}</span></div></div>`;
         }).join("")}
       </div>` : ""}
+
       ${areas.length ? `
-      <div class="user-section-title">${t.user_top_rooms}</div>
-      <div class="bars">
-        ${areas.map((a, i) => {
-          const color = CHART[(i+3) % CHART.length];
-          return `<div class="bar"><div class="fill" style="width:${(a.n/maxA)*100}%;background:linear-gradient(90deg,${color},${color}aa);--bar-glow:${color}88;"></div><div class="lbl"><div class="l"><div class="name-main">${a.area_name || a.area_id}</div></div><span class="v">${a.n}</span></div></div>`;
-        }).join("")}
+      <div class="user-section-title">КОМНАТЫ</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${areas.map(a => `<span class="status-badge status-info">${a.area_name || a.area_id}<b style="margin-left:6px">${a.n}</b></span>`).join("")}
       </div>` : ""}
     </div>`;
   }
 
+  // ===== AUTOMATIONS — efficiency analytics =====================
   _renderAuto(root) {
     const t = this._t;
-    const { topAuto, recent, summary, anomalies } = this._data;
-    const autoEvents = (recent || []).filter((r) => ["automation", "script"].includes(r.trigger_type));
-    const nAuto = summary.n_auto || 0;
-    const uniq = summary.unique_triggers || 0;
-    const avgRuns = uniq > 0 ? (nAuto / uniq).toFixed(1) : "0";
-    const topAutoRow = (topAuto || [])[0];
-    const topAutoLabel = topAutoRow ? (topAutoRow.automation_name || topAutoRow.key) : "—";
-    const topAutoN = topAutoRow ? topAutoRow.n : 0;
+    const topAuto = this._data.topAuto || [];
+    const recent = this._data.recent || [];
+    const a = this._data.anomalies || {};
+    const summary = this._data.summary || {};
 
-    // Truncate long automation names for the tile
-    const topShort = topAutoLabel.length > 18 ? topAutoLabel.slice(0, 16) + "…" : topAutoLabel;
+    if (!topAuto.length) {
+      root.innerHTML = `<div class="card col-12 empty">${t.no_data_long}</div>`;
+      return;
+    }
+
+    // Index anomalies for fast lookup
+    const inDuplicates = new Set();
+    (a.duplicate_automations || []).forEach(d => {
+      if (d.auto1) inDuplicates.add(d.auto1);
+      if (d.auto2) inDuplicates.add(d.auto2);
+    });
+    const inDead = new Set((a.dead_automations || []).map(d => d.entity_id));
+    const inLowImpact = new Set((a.low_impact_automations || []).map(l => l.entity_id));
+    const cancelledBy = {};
+    (a.user_cancelled || []).forEach(c => {
+      const k = c.auto_eid;
+      if (k) cancelledBy[k] = (cancelledBy[k] || 0) + 1;
+    });
+    const overriddenBy = {};
+    (a.manual_after_auto || []).forEach(m => {
+      const k = m.auto_eid;
+      if (k) overriddenBy[k] = (overriddenBy[k] || 0) + 1;
+    });
+
+    // Score each automation
+    const scored = topAuto.map(au => {
+      const eid = au.key;
+      const runs = au.n;
+      const cancels = cancelledBy[eid] || 0;
+      const overrides = overriddenBy[eid] || 0;
+      const isDup = inDuplicates.has(eid);
+      const isDead = inDead.has(eid);
+      const isLow = inLowImpact.has(eid);
+
+      let score = 100;
+      score -= Math.round(cancels / Math.max(1, runs) * 100 * 0.6);
+      score -= Math.round(overrides / Math.max(1, runs) * 100 * 0.4);
+      if (isDup) score -= 25;
+      if (isLow) score -= 15;
+      if (isDead) score -= 50;
+      score = Math.max(0, Math.min(100, score));
+
+      let verdict, sev;
+      if (isDead) { verdict = "Мёртвая"; sev = "muted"; }
+      else if (score >= 80) { verdict = "Стабильная"; sev = "good"; }
+      else if (score >= 60) { verdict = "Рабочая"; sev = "info"; }
+      else if (score >= 30) { verdict = "Нестабильная"; sev = "warn"; }
+      else { verdict = "Проблемная"; sev = "bad"; }
+
+      const tags = [];
+      if (isDup) tags.push({ sev: "warn", label: "дубль" });
+      if (isLow) tags.push({ sev: "info", label: "низкая польза" });
+      if (cancels > 0) tags.push({ sev: "warn", label: `отменена ${cancels}×` });
+      if (overrides > 0) tags.push({ sev: "warn", label: `переделана ${overrides}×` });
+      if (isDead) tags.push({ sev: "muted", label: "не работает" });
+
+      return { ...au, eid, runs, cancels, overrides, isDup, isDead, isLow, score, verdict, sev, tags };
+    });
+
+    // Aggregate stats
+    const stableCount = scored.filter(s => s.score >= 80).length;
+    const problemCount = scored.filter(s => s.score < 30).length;
+    const totalRuns = scored.reduce((s, x) => s + x.runs, 0);
 
     root.innerHTML = `
-      ${this._tile(3, nAuto, null, t.auto_period, "🤖", "col-3")}
-      ${this._tile(0, uniq, null, t.unique_triggers, "⚙️", "col-3")}
-      ${this._tile(2, avgRuns, null, t.avg_runs_per_automation, "📊", "col-3")}
-      ${this._tileText(1, topShort, "🏆", t.most_active_label, topAutoN ? `${topAutoN} ${t.runs_unit}` : null)}
+      ${this._tile(3, summary.n_auto || 0, null, "запусков", "🤖")}
+      ${this._tile(0, scored.length, null, "автоматизаций", "⚙️")}
+      ${this._tile(2, stableCount, null, "стабильных", "✅")}
+      ${this._tile(5, problemCount, null, "проблемных", "🔴")}
 
-      <div class="card col-12"><h3>${t.top_automations}</h3>${this._barList((topAuto || []).map(a => ({...a, friendly_name: a.automation_name})), "auto")}</div>
+      <div class="card col-12">
+        <h3>🤖 Эффективность автоматизаций <span class="sub">${scored.length} автоматизаций · ${totalRuns} запусков</span></h3>
+        ${scored.map(s => this._automationCard(s)).join("")}
+      </div>
 
-      ${anomalies?.duplicate_automations?.length ? `<div class="card col-12"><h3>${t.anomaly_dup}</h3>${this._dupAnomalies(anomalies.duplicate_automations)}</div>` : ""}
-
-      <div class="card col-12"><h3>${t.recent_events} — ${t.tab_auto}</h3>${this._eventsTable(autoEvents.slice(0, 100))}</div>
+      <details class="card col-12 details-block">
+        <summary><h3 style="display:inline-block;margin:0">📜 Только события автоматизаций</h3></summary>
+        <div style="margin-top:14px">${this._eventsTable(recent.filter(r => ["automation","script"].includes(r.trigger_type)).slice(0,100))}</div>
+      </details>
     `;
     this._wireSort();
   }
 
-  _tileText(idx, val, icon, label, sub) {
-    const sch = TILES[idx % TILES.length];
-    return `<div class="tile col-3" style="--tile-bg:${sch.bg};--tile-border:${sch.border};--tile-glow:${sch.glow};--tile-text:${sch.text}">
-      <div class="tile-icon">${icon}</div>
-      <div class="tile-value" style="font-size:1.35rem;line-height:1.15;color:${sch.text};">${val}</div>
-      <div class="tile-label">${label}</div>
-      ${sub ? `<div class="tile-delta delta-flat">${sub}</div>` : `<div class="tile-delta-placeholder"></div>`}
+  _automationCard(s) {
+    const name = s.friendly_name || s.automation_name || s.eid;
+    const insight = s.isDead
+      ? "Не срабатывала уже неделю — кандидат на удаление или починку триггера."
+      : s.isDup
+      ? "Конфликтует с другой автоматизацией — управляют одним устройством одновременно."
+      : s.isLow
+      ? "Управляет всего одним устройством одним сервисом — можно объединить с другой."
+      : s.cancels > 0
+      ? `Пользователь ${s.cancels}× отменял её действия — возможно условие срабатывает не вовремя.`
+      : s.overrides > 0
+      ? `Пользователь ${s.overrides}× переделывал результат — проверь яркость/время/режим.`
+      : s.score >= 80
+      ? "Работает стабильно, без конфликтов с пользователем."
+      : "Работает, но с небольшими шероховатостями.";
+
+    const scoreColor = s.sev === "good" ? "#34d399"
+      : s.sev === "info" ? "#60a5fa"
+      : s.sev === "warn" ? "#fbbf24"
+      : s.sev === "bad" ? "#f87171"
+      : "#94a3b8";
+
+    return `<div class="entity-card entity-card--${s.sev}">
+      <div class="entity-head">
+        <div class="entity-info">
+          <div class="entity-name">${name}</div>
+          <div class="entity-id">${s.eid}</div>
+        </div>
+        <div class="entity-score" style="color:${scoreColor}">${s.score}<span style="font-size:0.6em;opacity:.6">/100</span></div>
+      </div>
+      <div class="entity-stats">
+        <div class="entity-stat"><div class="v">${s.runs}</div><div class="l">запусков</div></div>
+        <div class="entity-stat"><div class="v">${s.cancels}</div><div class="l">отменено</div></div>
+        <div class="entity-stat"><div class="v">${s.overrides}</div><div class="l">переделано</div></div>
+        <div class="entity-stat"><span class="status-badge status-${s.sev}">${s.verdict}</span></div>
+      </div>
+      ${s.tags.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">${s.tags.map(t => `<span class="status-badge status-${t.sev}">${t.label}</span>`).join("")}</div>` : ""}
+      <div class="ai-line" style="margin-top:10px">💡 ${insight}</div>
     </div>`;
   }
 
+  // ===== DEVICES — stability analytics ==========================
   _renderDevices(root) {
     const t = this._t;
-    const { topEntity, byDomain, topService } = this._data;
+    const topEntity = this._data.topEntity || [];
+    const recent = this._data.recent || [];
+    const a = this._data.anomalies || this._data.health?.anomaly_top || {};
+    const byDomain = this._data.byDomain || [];
+    const topService = this._data.topService || [];
+
+    if (!topEntity.length) {
+      root.innerHTML = `<div class="card col-12 empty">${t.no_data_long}</div>`;
+      return;
+    }
+
+    const inRapid = {};
+    (a.rapid_toggle || a.rapid || []).forEach(r => {
+      inRapid[r.entity_id] = r.n || 0;
+    });
+    const inNight = new Set();
+    (a.night_activity || []).forEach(n => inNight.add(n.entity_id));
+
+    // Per-entity manual/auto split + last seen
+    const now = Math.floor(Date.now() / 1000);
+    const lastByEntity = {};
+    const splitByEntity = {};
+    recent.forEach(r => {
+      if (!lastByEntity[r.entity_id] || lastByEntity[r.entity_id] < r.ts) lastByEntity[r.entity_id] = r.ts;
+      const sp = splitByEntity[r.entity_id] = splitByEntity[r.entity_id] || { user: 0, auto: 0 };
+      if (r.trigger_type === "user") sp.user++;
+      else if (["automation","script"].includes(r.trigger_type)) sp.auto++;
+    });
+
+    const scored = topEntity.map(e => {
+      const eid = e.key;
+      const rapid = inRapid[eid] || 0;
+      const night = inNight.has(eid);
+      const lastTs = lastByEntity[eid] || 0;
+      const lastMins = lastTs ? Math.floor((now - lastTs) / 60) : null;
+      const split = splitByEntity[eid] || { user: 0, auto: 0 };
+      const userPct = e.n > 0 ? Math.round(split.user / e.n * 100) : 0;
+
+      let score = 100;
+      if (rapid > 0) score -= 50;
+      if (night) score -= 20;
+      score = Math.max(0, Math.min(100, score));
+
+      let verdict, sev;
+      if (rapid > 0) { verdict = "Спам/Флапинг"; sev = "bad"; }
+      else if (night) { verdict = "Ночная активность"; sev = "warn"; }
+      else if (lastMins != null && lastMins > 60 * 24) { verdict = "Не использовался"; sev = "muted"; }
+      else if (score >= 80) { verdict = "Стабилен"; sev = "good"; }
+      else { verdict = "Нормально"; sev = "info"; }
+
+      return { ...e, eid, rapid, night, lastMins, split, userPct, score, verdict, sev };
+    });
+
+    const stable = scored.filter(s => s.score >= 80 && s.sev !== "muted").length;
+    const issues = scored.filter(s => s.score < 60).length;
+
     root.innerHTML = `
-      <div class="card col-12"><h3>${t.top_devices}</h3>${this._barList(topEntity, "device")}</div>
-      <div class="card col-6"><h3>${t.by_domain}</h3>${this._barList(byDomain, "domain")}</div>
-      <div class="card col-6"><h3>${t.top_services}</h3>${this._barList((topService||[]).map(s=>({...s, key: this._label_service(s.key)})), "plain")}</div>
+      ${this._tile(0, scored.length, null, "устройств", "💡")}
+      ${this._tile(2, stable, null, "стабильных", "✅")}
+      ${this._tile(5, issues, null, "с проблемами", "⚠️")}
+      ${this._tile(1, byDomain.length, null, "типов устройств", "📦")}
+
+      <div class="card col-12">
+        <h3>💡 Состояние устройств <span class="sub">${scored.length} активных</span></h3>
+        ${scored.map(s => this._deviceCard(s)).join("")}
+      </div>
+
+      <div class="card col-6">
+        <h3>📦 По типам</h3>
+        ${this._barList(byDomain, "domain")}
+      </div>
+      <div class="card col-6">
+        <h3>⚡ Топ действий</h3>
+        ${this._barList((topService||[]).map(s => ({...s, key: this._label_service(s.key)})), "plain")}
+      </div>
     `;
   }
 
-  _renderRooms(root) {
-    const t = this._t;
-    const { rooms } = this._data;
-    if (!rooms?.length) { root.innerHTML = `<div class="card col-12 empty">${t.no_data_long}</div>`; return; }
-    root.innerHTML = `<div class="card col-12"><h3>${t.top_rooms}</h3>${rooms.map((r) => `
-      <div class="room-card">
-        <div class="room-head">
-          <div class="room-name">${r.area_name}</div>
-          <div class="room-stats">
-            <span style="color:#fff;font-weight:700;">${r.n}</span> ${this._t_str("events_period")}
-            <span class="pill pill-automation">${this._t_str("auto_period")}: ${r.n_auto || 0}</span>
-            <span class="pill pill-user">${this._t_str("manual_period")}: ${r.n_user || 0}</span>
-          </div>
+  _deviceCard(s) {
+    const name = s.friendly_name || s.eid;
+    const lastSeen = s.lastMins == null ? "—"
+      : s.lastMins < 1 ? "только что"
+      : s.lastMins < 60 ? `${s.lastMins} мин назад`
+      : s.lastMins < 60 * 24 ? `${Math.round(s.lastMins/60)} ч назад`
+      : `${Math.round(s.lastMins/60/24)} дн назад`;
+
+    const insight = s.rapid > 0
+      ? `⚡ Переключался ${s.rapid} раз за короткое время — возможен флапинг или цикл автоматизации.`
+      : s.night
+      ? `🌙 Активен ночью — проверь не забыто ли включенным или нет ли ложного срабатывания.`
+      : s.userPct > 70
+      ? `👆 ${s.userPct}% действий — ручные. Можно автоматизировать.`
+      : s.userPct < 10
+      ? `🤖 ${100-s.userPct}% действий — автоматические. Хорошо настроен.`
+      : `Сбалансированное использование (${s.userPct}% ручных).`;
+
+    const scoreColor = s.sev === "good" ? "#34d399"
+      : s.sev === "info" ? "#60a5fa"
+      : s.sev === "warn" ? "#fbbf24"
+      : s.sev === "bad" ? "#f87171"
+      : "#94a3b8";
+
+    return `<div class="entity-card entity-card--${s.sev}">
+      <div class="entity-head">
+        <div class="entity-info">
+          <div class="entity-name">${name}</div>
+          <div class="entity-id">${s.eid}${s.area_name ? " · " + s.area_name : ""}</div>
         </div>
-        <div class="room-ents">${(r.top_entities||[]).map((e) => `<div class="room-ent">${e.friendly_name || e.entity_id}<span class="n">${e.n}</span></div>`).join("")}</div>
+        <div class="entity-score" style="color:${scoreColor}">${s.score}<span style="font-size:0.6em;opacity:.6">/100</span></div>
       </div>
-    `).join("")}</div>`;
+      <div class="entity-stats">
+        <div class="entity-stat"><div class="v">${s.n}</div><div class="l">событий</div></div>
+        <div class="entity-stat"><div class="v">${s.split.user}/${s.split.auto}</div><div class="l">user/auto</div></div>
+        <div class="entity-stat"><div class="v">${lastSeen}</div><div class="l">последнее</div></div>
+        <div class="entity-stat"><span class="status-badge status-${s.sev}">${s.verdict}</span></div>
+      </div>
+      <div class="ai-line" style="margin-top:10px">${insight}</div>
+    </div>`;
   }
 
+  // ===== ROOMS — living entities =================================
+  _renderRooms(root) {
+    const t = this._t;
+    const rooms = this._data.rooms || [];
+    const a = this._data.anomalies || this._data.health?.anomaly_top || {};
+
+    if (!rooms.length) {
+      root.innerHTML = `<div class="card col-12 empty">${t.no_data_long}</div>`;
+      return;
+    }
+
+    // Anomalies per room (rapid_toggle has area_name field)
+    const anomByRoom = {};
+    (a.rapid_toggle || a.rapid || []).forEach(r => {
+      if (r.area_name) {
+        anomByRoom[r.area_name] = anomByRoom[r.area_name] || [];
+        anomByRoom[r.area_name].push({ type: "rapid", entity: r.friendly_name || r.entity_id });
+      }
+    });
+    (a.night_activity || []).forEach(n => {
+      if (n.area_name) {
+        anomByRoom[n.area_name] = anomByRoom[n.area_name] || [];
+        anomByRoom[n.area_name].push({ type: "night", entity: n.friendly_name || n.entity_id });
+      }
+    });
+
+    // Score each room
+    const scored = rooms.map(r => {
+      const ratio = r.n > 0 ? Math.round((r.n_auto || 0) / r.n * 100) : 0;
+      const anomalies = anomByRoom[r.area_name] || [];
+      let verdict, sev;
+      if (anomalies.length > 0) { verdict = `${anomalies.length} аномалий`; sev = "warn"; }
+      else if (ratio >= 80) { verdict = "Полностью авто"; sev = "good"; }
+      else if (ratio >= 50) { verdict = "Сбалансированная"; sev = "info"; }
+      else if (ratio > 20) { verdict = "Больше ручного"; sev = "info"; }
+      else { verdict = "Только ручное"; sev = "muted"; }
+      return { ...r, ratio, anomalies, verdict, sev };
+    });
+
+    const totalRooms = scored.length;
+    const totalAuto = scored.filter(s => s.ratio >= 80).length;
+    const totalManual = scored.filter(s => s.ratio < 30).length;
+    const withAnomalies = scored.filter(s => s.anomalies.length > 0).length;
+
+    root.innerHTML = `
+      ${this._tile(0, totalRooms, null, "комнат", "🏠")}
+      ${this._tile(2, totalAuto, null, "автоматизированных", "🤖")}
+      ${this._tile(1, totalManual, null, "ручных", "👆")}
+      ${this._tile(5, withAnomalies, null, "с аномалиями", "⚠️")}
+
+      <div class="card col-12">
+        <h3>🏠 Активность по комнатам <span class="sub">${totalRooms} комнат</span></h3>
+        ${scored.map(r => this._roomCard(r)).join("")}
+      </div>
+    `;
+  }
+
+  _roomCard(r) {
+    const insight = r.anomalies.length > 0
+      ? `⚠️ В комнате ${r.anomalies.length} аномалий: ${r.anomalies.slice(0,3).map(a => a.entity).join(", ")}.`
+      : r.ratio >= 80
+      ? "🤖 Полностью автоматизированная комната — почти не требует ручного вмешательства."
+      : r.ratio >= 50
+      ? "⚖️ Сбалансированная: автоматизация и ручное управление работают вместе."
+      : r.ratio > 20
+      ? "👆 В основном управляется руками — посмотри что можно автоматизировать."
+      : "🛠 Полностью ручное управление — кандидат на автоматизацию.";
+
+    const scoreColor = r.sev === "good" ? "#34d399"
+      : r.sev === "info" ? "#60a5fa"
+      : r.sev === "warn" ? "#fbbf24"
+      : "#94a3b8";
+
+    return `<div class="entity-card entity-card--${r.sev}">
+      <div class="entity-head">
+        <div class="entity-info">
+          <div class="entity-name">🏠 ${r.area_name}</div>
+          <div class="entity-id">${(r.top_entities||[]).length} устройств активно</div>
+        </div>
+        <div class="entity-score" style="color:${scoreColor}">${r.ratio}<span style="font-size:0.6em;opacity:.6">% auto</span></div>
+      </div>
+      <div class="entity-stats">
+        <div class="entity-stat"><div class="v">${r.n}</div><div class="l">событий</div></div>
+        <div class="entity-stat"><div class="v">${r.n_auto || 0}</div><div class="l">авто</div></div>
+        <div class="entity-stat"><div class="v">${r.n_user || 0}</div><div class="l">ручных</div></div>
+        <div class="entity-stat"><span class="status-badge status-${r.sev}">${r.verdict}</span></div>
+      </div>
+      ${(r.top_entities||[]).length ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+        ${r.top_entities.map(e => `<span class="status-badge status-info">${e.friendly_name || e.entity_id}<b style="margin-left:6px">${e.n}</b></span>`).join("")}
+      </div>` : ""}
+      <div class="ai-line" style="margin-top:10px">${insight}</div>
+    </div>`;
+  }
+
+  // ===== ANOMALIES — diagnostic center by severity ===============
   _renderAnomalies(root) {
     const t = this._t;
     const a = this._data.anomalies || {};
@@ -1483,84 +1911,82 @@ class HomeActivityPanel extends HTMLElement {
       && !a.duplicate_automations?.length && !a.night_activity?.length
       && !a.dead_automations?.length && !a.low_impact_automations?.length
       && !a.manual_after_auto?.length && !a.routine_candidates?.length;
-    if (empty) { root.innerHTML = `<div class="card col-12 empty">${t.no_anomalies}</div>`; return; }
-
-    const sections = [];
-
-    if (a.rapid_toggle?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_rapid}</h3>${a.rapid_toggle.map((r) => {
-        const dur = Math.round((r.last_ts - r.first_ts) / 60);
-        return `<div class="anomaly"><div class="a-title">${r.friendly_name || r.entity_id} — ${r.n} ${this._t_str("rapid_alert")} ${dur} ${this._t_str("minutes")}</div><div class="a-detail">${r.entity_id}${r.area_name ? ` · ${r.area_name}` : ""}</div></div>`;
-      }).join("")}</div>`);
+    if (empty) {
+      root.innerHTML = `<div class="card col-12">
+        <div class="critical-ok" style="margin:0">
+          <div class="critical-ok__icon">✓</div>
+          <div>
+            <div class="critical-ok__title">Аномалий не обнаружено</div>
+            <div class="critical-ok__sub">Дом работает в штатном режиме — никаких подозрительных паттернов</div>
+          </div>
+        </div>
+      </div>`;
+      return;
     }
 
-    if (a.user_cancelled?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_cancelled}</h3>${a.user_cancelled.map((c) => {
-        const sec = c.auto_ts - c.user_ts;
-        const params = { user: c.user_name || "—", action1: this._label_service(c.user_service), auto: c.auto_name || c.auto_eid, action2: this._label_service(c.auto_service), sec };
-        return `<div class="anomaly"><div class="a-title">${c.friendly_name || c.entity_id}</div><div class="a-detail">${this._t_str("cancelled_alert", params)}</div></div>`;
-      }).join("")}</div>`);
-    }
+    const counts = {
+      critical: (a.rapid_toggle?.length||0) + (a.duplicate_automations?.length||0),
+      warning: (a.user_cancelled?.length||0) + (a.manual_after_auto?.length||0) + (a.night_activity?.length||0),
+      info: (a.dead_automations?.length||0) + (a.low_impact_automations?.length||0),
+      suggestion: a.routine_candidates?.length || 0,
+    };
 
-    if (a.manual_after_auto?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_manual_after}</h3>${a.manual_after_auto.map((m) => {
-        const sec = m.user_ts - m.auto_ts;
-        const params = { auto: m.auto_name || m.auto_eid, user: m.user_name || "—", action1: this._label_service(m.auto_service), action2: this._label_service(m.user_service), sec };
-        return `<div class="anomaly"><div class="a-title">${m.friendly_name || m.entity_id}</div><div class="a-detail">${this._t_str("manual_after_text", params)}</div></div>`;
-      }).join("")}</div>`);
-    }
+    root.innerHTML = `
+      <div class="severity-summary col-12">
+        <div class="sev-pill sev-pill--bad">🔴 ${counts.critical} критично</div>
+        <div class="sev-pill sev-pill--warn">🟡 ${counts.warning} предупреждения</div>
+        <div class="sev-pill sev-pill--info">🔵 ${counts.info} информация</div>
+        <div class="sev-pill sev-pill--good">💡 ${counts.suggestion} предложений</div>
+      </div>
 
-    if (a.duplicate_automations?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_dup}</h3>${this._dupAnomalies(a.duplicate_automations)}</div>`);
-    }
+      ${counts.critical > 0 ? `<div class="card col-12 sev-block sev-block--bad">
+        <h3>🔴 Критичные проблемы <span class="sub">требуют внимания</span></h3>
+        ${(a.rapid_toggle||[]).map(r => this._anomItem("bad", "⚡ Флапинг устройства",
+          `${r.friendly_name||r.entity_id} переключилось ${r.n}× за ${Math.round((r.last_ts-r.first_ts)/60)||"?"} мин`,
+          r.area_name)).join("")}
+        ${(a.duplicate_automations||[]).map(d => this._anomItem("bad", "🔀 Дубль автоматизации",
+          `${d.auto1_name||d.auto1} и ${d.auto2_name||d.auto2} управляют одним устройством одновременно`,
+          d.friendly_name||d.entity_id)).join("")}
+      </div>` : ""}
 
-    if (a.dead_automations?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_dead}</h3>${a.dead_automations.map((d) => {
-        const days = Math.round((Date.now() / 1000 - d.last_seen) / 86400);
-        const params = { name: d.automation_name || d.entity_id, days };
-        return `<div class="anomaly night"><div class="a-title">${d.automation_name || d.entity_id}</div><div class="a-detail">${this._t_str("dead_automation_text", params)}</div></div>`;
-      }).join("")}</div>`);
-    }
+      ${counts.warning > 0 ? `<div class="card col-12 sev-block sev-block--warn">
+        <h3>🟡 Предупреждения <span class="sub">конфликты и аномалии</span></h3>
+        ${(a.user_cancelled||[]).map(c => this._anomItem("warn", "⊘ Автоматизация отменила пользователя",
+          `${c.user_name||"user"} → ${c.friendly_name||c.entity_id}, отменено через ${c.auto_ts-c.user_ts}с`,
+          c.auto_name||c.auto_eid)).join("")}
+        ${(a.manual_after_auto||[]).map(m => this._anomItem("warn", "✋ Ручное действие после авто",
+          `${m.user_name||"user"} переделал результат за ${m.user_ts-m.auto_ts}с`,
+          (m.auto_name||m.auto_eid)+" → "+(m.friendly_name||m.entity_id))).join("")}
+        ${(a.night_activity||[]).map(n => this._anomItem("warn", "🌙 Ночная активность",
+          `${n.friendly_name||n.entity_id} — ${n.n} событий между 00:00 и 06:00`,
+          n.area_name)).join("")}
+      </div>` : ""}
 
-    if (a.low_impact_automations?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_low}</h3>${a.low_impact_automations.map((l) => {
-        const params = { name: l.automation_name || l.entity_id, n: l.n_runs };
-        return `<div class="anomaly night"><div class="a-title">${l.automation_name || l.entity_id}</div><div class="a-detail">${this._t_str("low_impact_text", params)}</div></div>`;
-      }).join("")}</div>`);
-    }
+      ${counts.info > 0 ? `<div class="card col-12 sev-block sev-block--info">
+        <h3>🔵 Информация <span class="sub">кандидаты на ревизию</span></h3>
+        ${(a.dead_automations||[]).map(d => this._anomItem("info", "💤 Мёртвая автоматизация",
+          `${d.automation_name||d.entity_id} не срабатывала ${Math.round((Date.now()/1000 - (d.last_seen||0))/86400)} дн.`,
+          "удалить или починить триггер")).join("")}
+        ${(a.low_impact_automations||[]).map(l => this._anomItem("info", "📉 Малоэффективная",
+          `${l.automation_name||l.entity_id} запускается ${l.n_runs}× — управляет 1 устройством, 1 сервис`,
+          "объединить с соседними автоматизациями")).join("")}
+      </div>` : ""}
 
-    if (a.routine_candidates?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_routine}</h3>${a.routine_candidates.map((r) => {
-        const params = { user: r.user_name || "—", action: this._label_service(r.service), entity: r.friendly_name || r.entity_id, hour: r.hour, n: r.n };
-        return `<div class="anomaly" style="background:linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.02));color:#bbf7d0;border-left-color:#22c55e;border-color:rgba(34,197,94,.2);"><div class="a-title">💡 ${r.friendly_name || r.entity_id}</div><div class="a-detail">${this._t_str("automation_candidate_text", params)}</div></div>`;
-      }).join("")}</div>`);
-    }
-
-    if (a.night_activity?.length) {
-      sections.push(`<div class="card col-12"><h3>${t.anomaly_night}</h3>${a.night_activity.map((n) => `<div class="anomaly night"><div class="a-title">${n.friendly_name || n.entity_id} — ${n.n} ${this._t_str("night_alert")}</div><div class="a-detail">${n.entity_id}${n.area_name ? ` · ${n.area_name}` : ""}</div></div>`).join("")}</div>`);
-    }
-
-    root.innerHTML = sections.join("");
+      ${counts.suggestion > 0 ? `<div class="card col-12 sev-block sev-block--good">
+        <h3>💡 Кандидаты на новые автоматизации <span class="sub">повторяющиеся ручные паттерны</span></h3>
+        ${(a.routine_candidates||[]).map(r => this._anomItem("good", `★ ${r.friendly_name||r.entity_id}`,
+          `${r.user_name||"user"} делает «${this._label_service(r.service)}» в ${r.hour}:00 — ${r.n}× за период`,
+          "автоматизировать триггером по времени")).join("")}
+      </div>` : ""}
+    `;
   }
 
-  _heatmapChips() {
-    const t = this._t;
-    const chips = [
-      ["1h", t.hp_1h], ["3h", t.hp_3h], ["6h", t.hp_6h],
-      ["today", t.hp_today], ["yesterday", t.hp_yest],
-      ["7d", t.hp_7d], ["14d", t.p_14d], ["30d", t.hp_30d], ["90d", t.hp_90d],
-    ];
-    return `<div class="chips" data-role="heat-chips">${chips.map(([v, l]) =>
-      `<button class="chip ${this._heatPeriod === v ? "active" : ""}" data-heat="${v}">${l}</button>`
-    ).join("")}</div>`;
-  }
-
-  _dupAnomalies(rows) {
-    return rows.map((d) => {
-      const sec = d.ts2 - d.ts1;
-      const params = { auto1: d.auto1_name||d.auto1, auto2: d.auto2_name||d.auto2, action: this._label_service(d.service), entity: d.friendly_name||d.entity_id, sec };
-      return `<div class="anomaly"><div class="a-title">${d.friendly_name||d.entity_id}</div><div class="a-detail">${this._t_str("dup_alert", params)}</div></div>`;
-    }).join("");
+  _anomItem(sev, title, text, sub) {
+    return `<div class="anom-item anom-item--${sev}">
+      <div class="anom-item__title">${title}</div>
+      <div class="anom-item__text">${this._esc(text)}</div>
+      ${sub ? `<div class="anom-item__sub">${this._esc(sub)}</div>` : ""}
+    </div>`;
   }
 
   _renderJournal(root) {
