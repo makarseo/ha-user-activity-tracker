@@ -268,12 +268,44 @@ class HomeActivityPanel extends HTMLElement {
       this._loading = { active: false, progress: 0, done: 0, total: 0, started: 0, elapsed: 0 };
       this._loadingTimer = null;
       this._render();
-      this._fetch();
-      this._timer = setInterval(() => this._fetch(), 30_000);
+
+      // Cache-first: hydrate from localStorage if fresh (< 15 min).
+      // No background interval — only refresh on (a) cache expired,
+      // (b) tab change requiring missing data, (c) refresh button click.
+      const cache = this._loadCache();
+      if (cache && cache.days === this._days) {
+        this._data = cache.data;
+        this._lastFetchTs = cache.ts;
+        this._renderBody();
+      } else {
+        this._fetch();
+      }
     }
   }
 
-  disconnectedCallback() { if (this._timer) clearInterval(this._timer); }
+  disconnectedCallback() { /* no-op (no interval) */ }
+
+  // ---- 15-min localStorage cache ------------------------------------
+  _cacheKey() { return `uat_panel_v1`; }
+  _loadCache() {
+    try {
+      const raw = localStorage.getItem(this._cacheKey());
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !obj.ts || Date.now() - obj.ts > 15 * 60 * 1000) return null;
+      return obj;
+    } catch (_) { return null; }
+  }
+  _saveCache() {
+    try {
+      localStorage.setItem(this._cacheKey(), JSON.stringify({
+        ts: Date.now(), days: this._days, data: this._data,
+      }));
+    } catch (_) { /* quota / disabled */ }
+  }
+  _clearCache() {
+    try { localStorage.removeItem(this._cacheKey()); } catch (_) {}
+  }
 
   _t_str(key, params) {
     let s = this._t[key] || I18N.en[key] || key;
@@ -290,26 +322,41 @@ class HomeActivityPanel extends HTMLElement {
     return `heatmap?days=${this._days}`;
   }
 
-  async _fetch() {
+  async _fetch(forTab) {
     if (!this._hass) return;
     const d = this._days;
     const seriesGroup = d <= 1 ? "hour" : "day";
+    const tab = forTab || this._tab;
+
+    // Always-needed (cheap or central)
     const endpoints = {
       health: `health`,
-      summary: `summary?days=${d}`, compare: `compare?days=${d}`,
+      summary: `summary?days=${d}`,
+      compare: `compare?days=${d}`,
       series: `series?group=${seriesGroup}&days=${d}&split=trigger`,
-      heatmap: this._heatmapQuery(),
       sources: `breakdown?by=trigger_type&limit=10&days=${d}`,
-      insights: `insights?days=${d}`, anomalies: `anomalies?days=${d}`,
+      insights: `insights?days=${d}`,
       rooms: `rooms?days=${d}`,
       topEntity: `breakdown?by=entity_id&limit=20&days=${d}`,
-      topAuto: `breakdown?by=trigger_entity_id&limit=20&days=${d}&trigger_type=automation`,
-      topUser: `breakdown?by=user_id&limit=20&days=${d}`,
-      topService: `breakdown?by=service&limit=20&days=${d}`,
-      byDomain: `breakdown?by=domain&limit=20&days=${d}`,
-      recent: `events?limit=200`, peak: `stats`,
-      usersProfile: `users_profile?days=${d}`,
+      recent: `events?limit=200`,
+      peak: `stats`,
+      heatmap: this._heatmapQuery(),
     };
+    // Heavy or tab-specific — only fetch if user is actually on that tab
+    if (tab === "anomalies" || tab === "auto") {
+      endpoints.anomalies = `anomalies?days=${d}`;
+    }
+    if (tab === "auto") {
+      endpoints.topAuto = `breakdown?by=trigger_entity_id&limit=20&days=${d}&trigger_type=automation`;
+    }
+    if (tab === "people") {
+      endpoints.topUser = `breakdown?by=user_id&limit=20&days=${d}`;
+      endpoints.usersProfile = `users_profile?days=${d}`;
+    }
+    if (tab === "devices") {
+      endpoints.topService = `breakdown?by=service&limit=20&days=${d}`;
+      endpoints.byDomain = `breakdown?by=domain&limit=20&days=${d}`;
+    }
 
     const entries = Object.entries(endpoints);
     this._loading = { active: true, progress: 0, done: 0, total: entries.length, started: performance.now(), elapsed: 0 };
@@ -345,18 +392,23 @@ class HomeActivityPanel extends HTMLElement {
     this._updateProgressUI();
     setTimeout(() => this._updateProgressUI(true), 900);
 
-    this._data = {};
+    // Merge instead of replace — incremental tab loads keep Overview data alive
+    if (!this._data) this._data = {};
     const errs = [];
     for (const [k, v, err] of results) {
       this._data[k] = v;
       if (err) errs.push(err);
     }
     this._error = errs.length ? errs.join(" · ") : null;
+    this._lastFetchTs = Date.now();
+    this._saveCache();
     this._renderBody();
   }
 
   _updateProgressUI(hide = false) {
     const el = this.shadowRoot && this.shadowRoot.getElementById("progress");
+    const refreshBtn = this.shadowRoot && this.shadowRoot.getElementById("refresh");
+    if (refreshBtn) refreshBtn.classList.toggle("spinning", this._loading.active);
     if (!el) return;
     const L = this._loading;
     if (hide && !L.active) { el.classList.remove("is-visible"); return; }
@@ -403,17 +455,26 @@ class HomeActivityPanel extends HTMLElement {
       <style>
         :host {
           display: block; height: 100%;
-          background: radial-gradient(ellipse at top left, #1a1f2e 0%, #0a0e1a 50%, #050810 100%);
+          background: radial-gradient(ellipse at top left, #2c3349 0%, #1c2336 50%, #161c2c 100%);
           color: #e2e8f0;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
         }
+        .refresh-btn {
+          background: rgba(255,255,255,0.04); color: #e2e8f0;
+          border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+          padding: 7px 9px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+          transition: all .15s; line-height: 0;
+        }
+        .refresh-btn:hover { background: rgba(96,165,250,0.15); border-color: rgba(96,165,250,0.35); color: #93c5fd; }
+        .refresh-btn.spinning svg { animation: uat-spin 0.7s linear infinite; }
+        @keyframes uat-spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
         header {
           padding: 16px 28px 0;
-          background: linear-gradient(180deg, rgba(26,31,46,0.95) 0%, rgba(10,14,26,0.6) 100%);
+          background: linear-gradient(180deg, rgba(40,48,68,0.92) 0%, rgba(28,35,54,0.6) 100%);
           backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
           position: sticky; top: 0; z-index: 5;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
+          border-bottom: 1px solid rgba(255,255,255,0.08);
         }
         .top { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; }
         h1 {
@@ -480,11 +541,11 @@ class HomeActivityPanel extends HTMLElement {
         }
         main { padding: 20px 28px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
         .card {
-          background: linear-gradient(160deg, rgba(30,38,54,0.7) 0%, rgba(20,26,40,0.7) 100%);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: linear-gradient(160deg, rgba(48,58,82,0.65) 0%, rgba(34,42,62,0.65) 100%);
+          border: 1px solid rgba(255,255,255,0.08);
           border-radius: 16px; padding: 18px; overflow: hidden;
           backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-          box-shadow: 0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.04);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.06);
           min-height: 60px;
         }
         .card h3 {
@@ -888,6 +949,13 @@ class HomeActivityPanel extends HTMLElement {
       <header>
         <div class="top">
           <h1>${t.title}</h1>
+          <button id="refresh" class="refresh-btn" title="Refresh">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
           <select id="days">
             <option value="1" selected>${t.p_24h}</option>
             <option value="7">${t.p_7d}</option>
@@ -915,15 +983,36 @@ class HomeActivityPanel extends HTMLElement {
       <main id="body"></main>
     `;
     this.shadowRoot.getElementById("days").addEventListener("change", (e) => {
-      this._days = parseInt(e.target.value, 10); this._fetch();
+      this._days = parseInt(e.target.value, 10);
+      this._clearCache();
+      this._data = null;
+      this._fetch();
+    });
+    this.shadowRoot.getElementById("refresh").addEventListener("click", () => {
+      this._clearCache();
+      this._fetch();
     });
     this.shadowRoot.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", () => {
         this._tab = btn.dataset.tab;
         this.shadowRoot.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
-        this._renderBody();
+        // Lazy-load the heavy tab-specific endpoints if missing
+        if (this._tabNeedsExtraFetch()) {
+          this._fetch();
+        } else {
+          this._renderBody();
+        }
       });
     });
+  }
+
+  _tabNeedsExtraFetch() {
+    const d = this._data || {};
+    if (this._tab === "anomalies" && !d.anomalies) return true;
+    if (this._tab === "auto" && (!d.anomalies || !d.topAuto)) return true;
+    if (this._tab === "people" && (!d.usersProfile || !d.topUser)) return true;
+    if (this._tab === "devices" && (!d.byDomain || !d.topService)) return true;
+    return false;
   }
 
   _renderBody() {
