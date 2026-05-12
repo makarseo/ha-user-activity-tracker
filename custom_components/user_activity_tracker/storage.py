@@ -554,6 +554,29 @@ class ActivityStore:
             (since_ts, user_id, limit),
         )
 
+    async def async_last_event(self, trigger_type: str | None = None) -> dict | None:
+        clause = _trigger_clause(trigger_type)
+        rows = await self.hass.async_add_executor_job(
+            self._query,
+            f"""
+            SELECT ts, entity_id, friendly_name, area_name, service,
+                   user_name, automation_name, trigger_type, trigger_entity_id
+            FROM events
+            WHERE 1=1 {clause}
+            ORDER BY ts DESC LIMIT 1
+            """,
+            (),
+        )
+        return rows[0] if rows else None
+
+    async def async_active_devices_recent(self, since_ts: int) -> int:
+        rows = await self.hass.async_add_executor_job(
+            self._query,
+            "SELECT COUNT(DISTINCT entity_id) AS n FROM events WHERE ts >= ?",
+            (since_ts,),
+        )
+        return rows[0]["n"] if rows else 0
+
     async def async_purge_older_than(self, days: int) -> int:
         cutoff = int((datetime.now(tz=timezone.utc) - timedelta(days=days)).timestamp())
 

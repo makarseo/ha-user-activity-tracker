@@ -36,7 +36,7 @@ def async_register_views(hass: HomeAssistant, store: ActivityStore) -> None:
     for v in (StatsView, EventsView, BreakdownView, SeriesView, PurgeView,
               SummaryView, HeatmapView, AutomationDetailView,
               CompareView, InsightsView, AnomaliesView, RoomsView, EntityDetailView,
-              UsersProfileView):
+              UsersProfileView, HealthView):
         hass.http.register_view(v(store))
 
 
@@ -423,6 +423,128 @@ class UsersProfileView(_BaseView):
                 "peak_n": peak.get("n") if peak else None,
             })
         return self.json(result)
+
+
+class HealthView(_BaseView):
+    """House health snapshot — what the user really wants to see first.
+
+    Aggregates: status (active/quiet/empty), scores, last events, anomaly counts.
+    Computed on the fly from existing tables — no new schema.
+    """
+    url = f"{API_BASE}/health"
+    name = "api:user_activity_tracker:health"
+
+    async def get(self, request: web.Request) -> web.Response:
+        now = _now_utc()
+        # Scope of "lookback" for active/quiet/empty + active devices count
+        last_30m = int((now - timedelta(minutes=30)).timestamp())
+        last_1h = int((now - timedelta(hours=1)).timestamp())
+        last_24h = int((now - timedelta(days=1)).timestamp())
+
+        events_30m = await self.store.async_count_since(last_30m)
+        active_devices_1h = await self.store.async_active_devices_recent(last_1h)
+
+        # House status
+        if events_30m == 0:
+            status = "empty"
+        elif events_30m < 5:
+            status = "quiet"
+        else:
+            status = "active"
+
+        last_manual = await self.store.async_last_event("user")
+        last_auto = await self.store.async_last_event("automation")
+
+        summary_24h = await self.store.async_summary(last_24h)
+        total_24h = summary_24h.get("total", 0) or 0
+        n_user_24h = summary_24h.get("n_user", 0) or 0
+        n_auto_24h = summary_24h.get("n_auto", 0) or 0
+        ratio = round((n_auto_24h / total_24h) * 100) if total_24h else 0
+
+        # Anomaly counts
+        rapid = await self.store.async_rapid_toggle(last_24h)
+        cancelled = await self.store.async_user_cancelled(last_24h)
+        manual_after = await self.store.async_manual_after_auto(last_24h)
+        dups = await self.store.async_duplicate_automations(last_24h)
+        dead = await self.store.async_dead_automations(
+            int((now - timedelta(days=7)).timestamp()))
+        low = await self.store.async_low_impact_automations(last_24h)
+        routines = await self.store.async_routine_candidates(last_24h)
+        night = await self.store.async_night_activity(last_24h)
+
+        critical = len(rapid) + len(dups)
+        warning = len(cancelled) + len(manual_after) + len(night)
+        info = len(routines) + len(low) + len(dead)
+
+        # Scores 0-100
+        unique_entities = summary_24h.get("unique_entities", 0) or 1
+        # Automation health: 100 - (cancelled per total auto * 100)
+        if n_auto_24h > 0:
+            auto_health = max(0, 100 - round(len(cancelled) / n_auto_24h * 100 * 3) - len(dups) * 5)
+        else:
+            auto_health = 50
+        auto_health = max(0, min(100, auto_health))
+
+        # Device stability: 100 - rapid_toggle / unique_entities
+        device_stability = max(0, 100 - round(len(rapid) / max(1, unique_entities) * 100 * 5))
+        device_stability = max(0, min(100, device_stability))
+
+        # Activity vs prev (comparing today's count vs yesterday)
+        yesterday_start = int((now - timedelta(days=2)).timestamp())
+        yesterday_end = int((now - timedelta(days=1)).timestamp())
+        prev_count = await self.store.async_count_since(yesterday_start, yesterday_end)
+        if prev_count == 0:
+            activity_trend = "normal"
+        else:
+            ratio_act = total_24h / prev_count
+            if ratio_act > 1.5:
+                activity_trend = "high"
+            elif ratio_act < 0.5:
+                activity_trend = "low"
+            else:
+                activity_trend = "normal"
+
+        # Peak hour
+        peak = await self.store.async_peak_hour(last_24h)
+
+        # AI-style summary text (server-side, language-agnostic — i18n done client-side)
+        summary_key = "summary_active" if total_24h > 10 else "summary_quiet"
+
+        return self.json({
+            "status": status,
+            "events_30m": events_30m,
+            "events_24h": total_24h,
+            "n_user_24h": n_user_24h,
+            "n_auto_24h": n_auto_24h,
+            "automation_ratio": ratio,
+            "activity_trend": activity_trend,
+            "active_devices_now": active_devices_1h,
+            "peak_hour": peak.get("hour") if peak else None,
+            "peak_n": peak.get("n") if peak else None,
+            "last_manual": last_manual,
+            "last_automation": last_auto,
+            "anomaly_counts": {
+                "critical": critical,
+                "warning": warning,
+                "info": info,
+            },
+            "anomaly_top": {
+                "rapid": rapid[:3],
+                "duplicates": dups[:3],
+                "cancelled": cancelled[:3],
+            },
+            "scores": {
+                "automation_health": auto_health,
+                "device_stability": device_stability,
+                "activity_level": activity_trend,
+            },
+            "summary_key": summary_key,
+            "summary_params": {
+                "total": total_24h, "ratio": ratio,
+                "peak": (peak or {}).get("hour"),
+                "critical": critical, "warning": warning,
+            },
+        })
 
 
 class PurgeView(_BaseView):

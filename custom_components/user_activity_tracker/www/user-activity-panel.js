@@ -1,7 +1,10 @@
 /**
  * Custom panel: Home Activity Intelligence
- * v0.2.3 — dark fintech dashboard style:
- *   navy background, gradient KPI tiles, glowing donut, smooth area chart
+ * v0.3.0 — Behavioral Analytics:
+ *   - Default period 24h (was 14d)
+ *   - Loading progress bar 0-100% with elapsed time
+ *   - Overview rebuilt: Health Bar → Critical Events → AI Summary → Scores → Trends → Details
+ *   - Series auto-groups by hour for 24h, by day for longer periods
  */
 
 const I18N = {
@@ -258,10 +261,12 @@ class HomeActivityPanel extends HTMLElement {
     this._t = I18N[this._lang];
     if (!this._initialized) {
       this._initialized = true;
-      this._days = 14;
+      this._days = 1;
       this._tab = "overview";
-      this._heatPeriod = "14d"; // 1h | 3h | 6h | today | yesterday | 7d | 14d | 30d | 90d
+      this._heatPeriod = "today";
       this._sortBy = "ts"; this._sortDir = "desc";
+      this._loading = { active: false, progress: 0, done: 0, total: 0, started: 0, elapsed: 0 };
+      this._loadingTimer = null;
       this._render();
       this._fetch();
       this._timer = setInterval(() => this._fetch(), 30_000);
@@ -288,9 +293,11 @@ class HomeActivityPanel extends HTMLElement {
   async _fetch() {
     if (!this._hass) return;
     const d = this._days;
+    const seriesGroup = d <= 1 ? "hour" : "day";
     const endpoints = {
+      health: `health`,
       summary: `summary?days=${d}`, compare: `compare?days=${d}`,
-      series: `series?group=day&days=${d}&split=trigger`,
+      series: `series?group=${seriesGroup}&days=${d}&split=trigger`,
       heatmap: this._heatmapQuery(),
       sources: `breakdown?by=trigger_type&limit=10&days=${d}`,
       insights: `insights?days=${d}`, anomalies: `anomalies?days=${d}`,
@@ -303,15 +310,41 @@ class HomeActivityPanel extends HTMLElement {
       recent: `events?limit=200`, peak: `stats`,
       usersProfile: `users_profile?days=${d}`,
     };
+
+    const entries = Object.entries(endpoints);
+    this._loading = { active: true, progress: 0, done: 0, total: entries.length, started: performance.now(), elapsed: 0 };
+    this._updateProgressUI();
+    if (this._loadingTimer) clearInterval(this._loadingTimer);
+    this._loadingTimer = setInterval(() => {
+      this._loading.elapsed = (performance.now() - this._loading.started) / 1000;
+      this._updateProgressUI();
+    }, 100);
+
     const results = await Promise.all(
-      Object.entries(endpoints).map(async ([k, p]) => {
-        try { return [k, await this._call(p), null]; }
-        catch (e) {
+      entries.map(async ([k, p]) => {
+        try {
+          const r = await this._call(p);
+          this._loading.done++;
+          this._loading.progress = Math.round(this._loading.done / this._loading.total * 100);
+          this._updateProgressUI();
+          return [k, r, null];
+        } catch (e) {
           console.error(`[UAT] ${p} failed:`, e);
+          this._loading.done++;
+          this._loading.progress = Math.round(this._loading.done / this._loading.total * 100);
+          this._updateProgressUI();
           return [k, this._defaultFor(k), this._fmtError(e, p)];
         }
       })
     );
+
+    this._loading.elapsed = (performance.now() - this._loading.started) / 1000;
+    this._loading.active = false;
+    this._loading.progress = 100;
+    if (this._loadingTimer) { clearInterval(this._loadingTimer); this._loadingTimer = null; }
+    this._updateProgressUI();
+    setTimeout(() => this._updateProgressUI(true), 900);
+
     this._data = {};
     const errs = [];
     for (const [k, v, err] of results) {
@@ -320,6 +353,26 @@ class HomeActivityPanel extends HTMLElement {
     }
     this._error = errs.length ? errs.join(" · ") : null;
     this._renderBody();
+  }
+
+  _updateProgressUI(hide = false) {
+    const el = this.shadowRoot && this.shadowRoot.getElementById("progress");
+    if (!el) return;
+    const L = this._loading;
+    if (hide && !L.active) { el.classList.remove("is-visible"); return; }
+    el.classList.add("is-visible");
+    el.classList.toggle("is-done", !L.active && L.progress >= 100);
+    const bar = el.querySelector(".progress__bar-fill");
+    const pct = el.querySelector(".progress__pct");
+    const meta = el.querySelector(".progress__meta");
+    if (bar) bar.style.width = L.progress + "%";
+    if (pct) pct.textContent = L.progress + "%";
+    if (meta) {
+      const elapsed = L.elapsed.toFixed(1);
+      meta.textContent = L.active
+        ? `загрузка · ${L.done}/${L.total} · ${elapsed}с`
+        : `готово за ${elapsed}с`;
+    }
   }
 
   _defaultFor(key) {
@@ -392,6 +445,38 @@ class HomeActivityPanel extends HTMLElement {
         .tab.active::after {
           content: ""; position: absolute; bottom: -1px; left: 12px; right: 12px; height: 2px;
           background: linear-gradient(90deg, #60a5fa, #c084fc, #f472b6); border-radius: 2px;
+        }
+        /* Progress bar */
+        .progress {
+          position: relative; padding: 6px 0 8px;
+          display: flex; align-items: center; gap: 12px;
+          opacity: 0; max-height: 0; overflow: hidden;
+          transition: opacity .25s ease, max-height .25s ease;
+        }
+        .progress.is-visible { opacity: 1; max-height: 50px; }
+        .progress__bar {
+          flex: 1; height: 6px; border-radius: 999px;
+          background: rgba(255,255,255,0.06); overflow: hidden;
+          position: relative;
+        }
+        .progress__bar-fill {
+          height: 100%; width: 0%;
+          background: linear-gradient(90deg, #60a5fa, #c084fc, #f472b6);
+          border-radius: 999px;
+          transition: width .15s ease;
+          box-shadow: 0 0 12px rgba(96,165,250,0.4);
+        }
+        .progress.is-done .progress__bar-fill {
+          background: linear-gradient(90deg, #4ade80, #22c55e);
+          box-shadow: 0 0 12px rgba(74,222,128,0.4);
+        }
+        .progress__pct {
+          font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.82rem;
+          color: #e2e8f0; min-width: 42px; text-align: right;
+        }
+        .progress__meta {
+          font-size: 0.72rem; color: #94a3b8; font-weight: 500;
+          font-variant-numeric: tabular-nums; white-space: nowrap;
         }
         main { padding: 20px 28px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); align-items: start; }
         .card {
@@ -624,18 +709,198 @@ class HomeActivityPanel extends HTMLElement {
         .room-ent .n { color: #60a5fa; font-weight: 700; margin-left: 6px; }
 
         .ts { color: #64748b; font-size: 0.72rem; white-space: nowrap; font-family: ui-monospace,monospace; }
+
+        /* ── HEALTH BAR ── */
+        .health-bar {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 12px;
+        }
+        @media (max-width: 1100px) { .health-bar { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px)  { .health-bar { grid-template-columns: 1fr; } }
+        .health {
+          display: flex; align-items: center; gap: 12px;
+          padding: 16px 18px;
+          background: linear-gradient(160deg, rgba(30,38,54,0.7), rgba(20,26,40,0.7));
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 14px;
+          position: relative;
+          overflow: hidden;
+        }
+        .health::before {
+          content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+        }
+        .health--good::before { background: #4ade80; }
+        .health--info::before { background: #60a5fa; }
+        .health--warn::before { background: #fbbf24; }
+        .health--bad::before  { background: #ef4444; }
+        .health--muted::before{ background: #475569; }
+        .health__icon {
+          font-size: 1.6rem; flex-shrink: 0;
+          width: 44px; height: 44px;
+          border-radius: 12px;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(255,255,255,0.04);
+        }
+        .health--good .health__icon { background: rgba(74,222,128,0.12); }
+        .health--info .health__icon { background: rgba(96,165,250,0.12); }
+        .health--warn .health__icon { background: rgba(251,191,36,0.12); }
+        .health--bad  .health__icon { background: rgba(239,68,68,0.12); animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.08);} }
+        .health__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+        .health__label {
+          font-size: 0.66rem; color: #94a3b8;
+          text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+        }
+        .health__value {
+          font-size: 1.05rem; font-weight: 700; color: #fff;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .health--good .health__value { color: #4ade80; }
+        .health--warn .health__value { color: #fcd34d; }
+        .health--bad  .health__value { color: #fca5a5; }
+        .health--info .health__value { color: #93c5fd; }
+        .health__sub {
+          font-size: 0.7rem; color: #64748b;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* ── CRITICAL ── */
+        .critical-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          gap: 10px;
+        }
+        .critical {
+          display: flex; align-items: flex-start; gap: 12px;
+          padding: 14px 16px;
+          background: rgba(239,68,68,0.06);
+          border: 1px solid rgba(239,68,68,0.2);
+          border-left: 3px solid #ef4444;
+          border-radius: 12px;
+        }
+        .critical--warn { background: rgba(251,191,36,0.06); border-color: rgba(251,191,36,0.25); border-left-color: #fbbf24; }
+        .critical--info { background: rgba(96,165,250,0.06); border-color: rgba(96,165,250,0.25); border-left-color: #60a5fa; }
+        .critical__icon { font-size: 1.2rem; }
+        .critical__title { font-weight: 700; font-size: 0.88rem; color: #fff; margin-bottom: 3px; }
+        .critical__text { font-size: 0.78rem; color: #cbd5e1; opacity: 0.9; }
+
+        .critical-ok {
+          display: flex; align-items: center; gap: 18px;
+          padding: 18px 22px;
+          background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.02));
+          border: 1px solid rgba(34,197,94,0.2);
+          border-radius: 14px;
+        }
+        .critical-ok__icon {
+          font-size: 1.8rem; color: #4ade80;
+          width: 48px; height: 48px;
+          border-radius: 50%;
+          background: rgba(74,222,128,0.15);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .critical-ok__title { font-weight: 700; color: #4ade80; font-size: 0.98rem; }
+        .critical-ok__sub { font-size: 0.78rem; color: #94a3b8; margin-top: 2px; }
+
+        /* ── AI Summary ── */
+        .ai-line {
+          padding: 10px 14px;
+          background: linear-gradient(135deg, rgba(96,165,250,0.06), rgba(167,139,250,0.04));
+          border: 1px solid rgba(96,165,250,0.12);
+          border-radius: 10px;
+          font-size: 0.86rem;
+          line-height: 1.5;
+          margin-bottom: 8px;
+          color: #cbd5e1;
+        }
+        .ai-line b { color: #fff; font-weight: 700; }
+        .ai-line:last-child { margin-bottom: 0; }
+
+        /* ── SCORE CARDS ── */
+        .score-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+        @media (max-width: 1100px) { .score-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px)  { .score-grid { grid-template-columns: 1fr; } }
+        .score {
+          background: linear-gradient(160deg, rgba(30,38,54,0.7), rgba(20,26,40,0.7));
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 14px;
+          padding: 16px 18px;
+          display: flex; flex-direction: column; gap: 8px;
+          min-height: 130px;
+        }
+        .score--good { border-color: rgba(74,222,128,0.25); }
+        .score--warn { border-color: rgba(251,191,36,0.25); }
+        .score--bad  { border-color: rgba(239,68,68,0.3); }
+        .score__head { display: flex; align-items: center; gap: 8px; }
+        .score__icon { font-size: 1.1rem; }
+        .score__label {
+          font-size: 0.7rem; color: #94a3b8;
+          text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+        }
+        .score__big {
+          font-size: 2rem; font-weight: 800; color: #fff;
+          line-height: 1; letter-spacing: -1px;
+          font-variant-numeric: tabular-nums;
+        }
+        .score__big small { font-size: 0.7rem; opacity: 0.6; font-weight: 600; }
+        .score--good .score__big { color: #4ade80; }
+        .score--warn .score__big { color: #fcd34d; }
+        .score--bad  .score__big { color: #fca5a5; }
+        .score__status { font-size: 0.78rem; color: #94a3b8; font-weight: 600; margin-top: auto; }
+        .score__bar { height: 5px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+        .score__bar-fill {
+          height: 100%; border-radius: 999px;
+          background: linear-gradient(90deg, #60a5fa, #c084fc);
+          transition: width .4s ease;
+        }
+        .score--good .score__bar-fill { background: linear-gradient(90deg, #4ade80, #22c55e); }
+        .score--warn .score__bar-fill { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .score--bad  .score__bar-fill { background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+        /* ── DETAILS (collapsible) ── */
+        .details-block summary {
+          list-style: none;
+          cursor: pointer;
+          padding: 4px 0;
+          user-select: none;
+        }
+        .details-block summary::-webkit-details-marker { display: none; }
+        .details-block summary::before {
+          content: "▸";
+          display: inline-block;
+          color: #64748b;
+          margin-right: 8px;
+          transition: transform .2s;
+          font-size: 0.8rem;
+        }
+        .details-block[open] summary::before { transform: rotate(90deg); }
+        .details-block summary h3 {
+          color: #e2e8f0;
+          font-size: 0.95rem;
+          font-weight: 600;
+        }
       </style>
       <header>
         <div class="top">
           <h1>${t.title}</h1>
           <select id="days">
-            <option value="1">${t.p_24h}</option>
+            <option value="1" selected>${t.p_24h}</option>
             <option value="7">${t.p_7d}</option>
-            <option value="14" selected>${t.p_14d}</option>
+            <option value="14">${t.p_14d}</option>
             <option value="30">${t.p_30d}</option>
             <option value="90">${t.p_90d}</option>
             <option value="365">${t.p_year}</option>
           </select>
+        </div>
+        <div id="progress" class="progress">
+          <div class="progress__bar"><div class="progress__bar-fill"></div></div>
+          <div class="progress__pct">0%</div>
+          <div class="progress__meta">—</div>
         </div>
         <div class="tabs">
           <button class="tab active" data-tab="overview">${t.tab_overview}</button>
@@ -693,47 +958,290 @@ class HomeActivityPanel extends HTMLElement {
     });
   }
 
-  // ===== OVERVIEW =====
+  // ===== OVERVIEW (behavioral analytics) =====
   _renderOverview(root) {
     const t = this._t;
-    const { compare, summary, series, sources, insights, rooms, topEntity, recent } = this._data;
+    const { compare, summary, series, sources, insights, anomalies, rooms, topEntity, topAuto, topUser, recent } = this._data;
     const cur = compare?.current || {};
     const prv = compare?.previous || {};
-    const total = cur.total || 0;
-    const ratio = total > 0 ? Math.round((cur.n_auto || 0) / total * 100) : 0;
+    const a = anomalies || {};
 
+    // ── Compute derived signals ──
+    const now = Math.floor(Date.now() / 1000);
+    const lastTs = recent && recent.length ? recent[0].ts : 0;
+    const minsSinceLast = lastTs ? Math.floor((now - lastTs) / 60) : null;
+    let houseState, houseSev;
+    if (minsSinceLast == null) { houseState = "—"; houseSev = "muted"; }
+    else if (minsSinceLast < 5) { houseState = "АКТИВЕН"; houseSev = "good"; }
+    else if (minsSinceLast < 60) { houseState = "ТИХО"; houseSev = "info"; }
+    else { houseState = "СПИТ"; houseSev = "muted"; }
+
+    const anomCount =
+      (a.rapid_toggle?.length || 0) +
+      (a.user_cancelled?.length || 0) +
+      (a.duplicate_automations?.length || 0) +
+      (a.dead_automations?.length || 0) +
+      (a.manual_after_auto?.length || 0);
+    let autoState, autoSev;
+    if (anomCount === 0) { autoState = "СТАБИЛЬНО"; autoSev = "good"; }
+    else if (anomCount <= 5) { autoState = "ВНИМАНИЕ"; autoSev = "warn"; }
+    else { autoState = "НЕСТАБИЛЬНО"; autoSev = "bad"; }
+
+    const total = cur.total || 0;
+    const prvTotal = prv.total || 0;
+    let actState = "—", actSev = "muted";
+    if (prvTotal > 0) {
+      const r = total / prvTotal;
+      if (r > 1.3) { actState = "ВЫШЕ среднего"; actSev = "warn"; }
+      else if (r < 0.7) { actState = "НИЖЕ"; actSev = "info"; }
+      else { actState = "НОРМА"; actSev = "good"; }
+    } else if (total > 0) { actState = "НОРМА"; actSev = "good"; }
+
+    const peopleCount = cur.unique_users || 0;
+    const presenceState = peopleCount > 0 ? `${peopleCount} активн.` : "никого";
+    const presenceSev = peopleCount > 0 ? "good" : "muted";
+
+    // Last manual action
+    const userEvents = (recent || []).filter(e => e.trigger_type === "user");
+    const lastManual = userEvents[0];
+
+    // ── Behavioral Scores ──
+    const autoRatio = total > 0 ? Math.round((cur.n_auto || 0) / total * 100) : 0;
+    let autoHealth;
+    if (autoRatio === 0) autoHealth = 30;
+    else if (autoRatio >= 50 && autoRatio <= 85) autoHealth = 95;
+    else if (autoRatio < 50) autoHealth = 40 + autoRatio;
+    else autoHealth = 100 - (autoRatio - 85) * 2;
+    autoHealth -= (a.rapid_toggle?.length || 0) * 3;
+    autoHealth -= (a.duplicate_automations?.length || 0) * 5;
+    autoHealth -= (a.user_cancelled?.length || 0) * 2;
+    autoHealth -= (a.manual_after_auto?.length || 0) * 1;
+    autoHealth = Math.max(0, Math.min(100, Math.round(autoHealth)));
+
+    const devCount = Math.max(1, cur.unique_entities || 1);
+    let devStability = 100;
+    devStability -= (a.rapid_toggle?.length || 0) / devCount * 200;
+    devStability -= (a.dead_automations?.length || 0) * 2;
+    devStability = Math.max(0, Math.min(100, Math.round(devStability)));
+
+    const activityScore = actState;
+
+    // ── Render ──
     root.innerHTML = `
-      ${this._tile(0, total, prv.total, t.events_period, "📊")}
-      ${this._tile(1, cur.n_auto || 0, prv.n_auto, t.auto_period, "🤖")}
-      ${this._tile(2, cur.n_user || 0, prv.n_user, t.manual_period, "👆")}
-      ${this._tile(3, cur.unique_entities || 0, prv.unique_entities, t.unique_entities, "💡")}
-      ${this._tile(4, cur.unique_areas || 0, prv.unique_areas, t.unique_areas, "🏠")}
-      ${this._peakTile()}
+      ${this._healthBar([
+        { icon: "🏠", label: "Дом", value: houseState, sev: houseSev, sub: minsSinceLast != null ? `последнее: ${this._humanTime(minsSinceLast)}` : "" },
+        { icon: "🤖", label: "Автоматизации", value: autoState, sev: autoSev, sub: anomCount > 0 ? `${anomCount} проблем` : "без отклонений" },
+        { icon: "⚠", label: "Аномалии", value: String(anomCount), sev: anomCount > 0 ? (anomCount > 5 ? "bad" : "warn") : "good", sub: anomCount > 0 ? "см. вкладку «Аномалии»" : "всё чисто" },
+        { icon: "📈", label: "Активность", value: actState, sev: actSev, sub: prvTotal > 0 ? `${total} vs ${prvTotal}` : `${total} событий` },
+        { icon: "👥", label: "Присутствие", value: presenceState, sev: presenceSev, sub: lastManual ? `последнее: ${lastManual.friendly_name || lastManual.entity_id}` : "" },
+      ])}
+
+      ${this._criticalBlock(a)}
+
+      <div class="card col-12">
+        <h3>🧠 AI Summary <span class="sub">за последние ${this._humanDays(this._days)}</span></h3>
+        ${this._aiSummary(cur, prv, a, recent, insights, topEntity, rooms)}
+      </div>
+
+      <div class="col-12 score-grid">
+        ${this._scoreCard("Automation Health", autoHealth, this._scoreLabel(autoHealth), "🤖", autoSev)}
+        ${this._scoreCard("Device Stability", devStability, this._scoreLabel(devStability), "📡", devStability < 70 ? "warn" : "good")}
+        ${this._scoreCard("House Activity", null, activityScore, "📊", actSev)}
+        ${this._scoreCard("Automation %", autoRatio + "%", autoRatio >= 50 && autoRatio <= 85 ? "Здоровая" : (autoRatio > 85 ? "Очень высокая" : "Мало"), "⚙", autoSev)}
+      </div>
 
       <div class="card col-8">
-        <h3>${t.activity_dynamics} <span class="sub">${this._days}d</span></h3>
+        <h3>${t.activity_dynamics} <span class="sub">${this._humanDays(this._days)} ${prvTotal > 0 ? `· vs предыдущий период (${prvTotal})` : ""}</span></h3>
         ${this._areaChart(series)}
       </div>
       <div class="card col-4">
         <h3>${t.sources}</h3>
         ${this._donut(sources)}
-        ${this._gauge(ratio)}
+        ${this._gauge(autoRatio)}
       </div>
 
-      <div class="card col-12"><h3>${t.insights}</h3>${this._renderInsights(insights)}</div>
+      <details class="card col-12 details-block" open>
+        <summary><h3 style="display:inline-block;margin:0">📋 Подробности и инсайты</h3></summary>
+        <div style="margin-top:14px">${this._renderInsights(insights)}</div>
+      </details>
 
-      <div class="card col-12">
-        <h3>${t.heatmap}</h3>
-        ${this._heatmapChips()}
-        ${this._heatmap(this._data.heatmap)}
-      </div>
+      <details class="card col-12 details-block">
+        <summary><h3 style="display:inline-block;margin:0">🔥 Тепловая карта · час × день</h3></summary>
+        <div style="margin-top:14px">
+          ${this._heatmapChips()}
+          ${this._heatmap(this._data.heatmap)}
+        </div>
+      </details>
 
-      <div class="card col-6"><h3>${t.top_rooms}</h3>${this._roomsList(rooms || [])}</div>
-      <div class="card col-6"><h3>${t.top_devices}</h3>${this._barList(topEntity, "device")}</div>
+      <details class="card col-6 details-block">
+        <summary><h3 style="display:inline-block;margin:0">🏠 Топ комнат</h3></summary>
+        <div style="margin-top:14px">${this._roomsList(rooms || [])}</div>
+      </details>
+      <details class="card col-6 details-block">
+        <summary><h3 style="display:inline-block;margin:0">💡 Топ устройств</h3></summary>
+        <div style="margin-top:14px">${this._barList(topEntity, "device")}</div>
+      </details>
 
-      <div class="card col-12"><h3>${t.recent_events}</h3>${this._eventsTable((recent||[]).slice(0,50))}</div>
+      <details class="card col-12 details-block">
+        <summary><h3 style="display:inline-block;margin:0">📜 Последние события (raw)</h3></summary>
+        <div style="margin-top:14px">${this._eventsTable((recent||[]).slice(0,50))}</div>
+      </details>
     `;
     this._wireSort();
+  }
+
+  _healthBar(items) {
+    const cards = items.map(it => `
+      <div class="health health--${it.sev}">
+        <div class="health__icon">${it.icon}</div>
+        <div class="health__body">
+          <div class="health__label">${it.label}</div>
+          <div class="health__value">${it.value}</div>
+          ${it.sub ? `<div class="health__sub">${it.sub}</div>` : ""}
+        </div>
+      </div>`).join("");
+    return `<div class="col-12 health-bar">${cards}</div>`;
+  }
+
+  _criticalBlock(a) {
+    const crit = [];
+    (a.rapid_toggle || []).slice(0, 5).forEach(r => crit.push({
+      sev: "warn", icon: "⚡", title: "Флапинг устройства",
+      text: `${r.friendly_name || r.entity_id || "—"} · ${r.n || 0}× за ${r.minutes || "?"} мин`
+    }));
+    (a.duplicate_automations || []).slice(0, 3).forEach(d => crit.push({
+      sev: "warn", icon: "🔀", title: "Дубль автоматизации",
+      text: `${d.auto1 || ""} ↔ ${d.auto2 || ""}${d.entity ? " · " + d.entity : ""}`
+    }));
+    (a.user_cancelled || []).slice(0, 3).forEach(c => crit.push({
+      sev: "bad", icon: "⊘", title: "Автоматизация отменила пользователя",
+      text: `${c.user_name || c.user_id || "user"} → ${c.entity_id || ""} · отменила ${c.auto_name || c.auto || "?"}`
+    }));
+    (a.dead_automations || []).slice(0, 3).forEach(d => crit.push({
+      sev: "info", icon: "💤", title: "Мёртвая автоматизация",
+      text: `${d.friendly_name || d.entity_id} · ${d.days_ago || "7+"} дн без срабатывания`
+    }));
+    (a.manual_after_auto || []).slice(0, 3).forEach(m => crit.push({
+      sev: "warn", icon: "✋", title: "Ручное действие после автоматизации",
+      text: `${m.user_name || "user"} переделал за ${m.sec || "?"}с после ${m.auto_name || m.auto || ""}`
+    }));
+
+    if (crit.length === 0) {
+      return `<div class="col-12 critical-ok">
+        <div class="critical-ok__icon">✓</div>
+        <div>
+          <div class="critical-ok__title">Критичных проблем нет</div>
+          <div class="critical-ok__sub">Дом работает в штатном режиме</div>
+        </div>
+      </div>`;
+    }
+    return `<div class="col-12 critical-grid">
+      ${crit.map(c => `<div class="critical critical--${c.sev}">
+        <div class="critical__icon">${c.icon}</div>
+        <div>
+          <div class="critical__title">${this._esc(c.title)}</div>
+          <div class="critical__text">${this._esc(c.text)}</div>
+        </div>
+      </div>`).join("")}
+    </div>`;
+  }
+
+  _aiSummary(cur, prv, a, recent, insights, topEntity, rooms) {
+    const parts = [];
+    const total = cur.total || 0;
+    const prvTotal = prv.total || 0;
+    const autoRatio = total > 0 ? Math.round((cur.n_auto || 0) / total * 100) : 0;
+
+    if (total === 0) {
+      return `<div class="ai-line">Данных пока нет. Подожди несколько событий в HA — анализ появится автоматически.</div>`;
+    }
+
+    // 1) overall
+    if (prvTotal > 0) {
+      const diff = total - prvTotal;
+      const pct = Math.round(diff / prvTotal * 100);
+      const verb = diff > 0 ? "выросла" : (diff < 0 ? "снизилась" : "не изменилась");
+      parts.push(`За период обработано <b>${total}</b> событий (активность ${verb} на <b>${Math.abs(pct)}%</b> относительно предыдущего такого же интервала).`);
+    } else {
+      parts.push(`За период обработано <b>${total}</b> событий.`);
+    }
+
+    // 2) automation balance
+    if (autoRatio >= 50 && autoRatio <= 85) {
+      parts.push(`Уровень автоматизации <b>${autoRatio}%</b> — здоровый баланс: дом работает сам, но оставляет контроль.`);
+    } else if (autoRatio > 85) {
+      parts.push(`Уровень автоматизации <b>${autoRatio}%</b> — почти всё автономно. Стоит проверить, не зацикливаются ли сценарии.`);
+    } else if (autoRatio > 0) {
+      parts.push(`Только <b>${autoRatio}%</b> действий автоматизированы — большинство делается вручную, есть простор для роста.`);
+    }
+
+    // 3) top room
+    const topRoom = (rooms || [])[0];
+    if (topRoom) parts.push(`Самая активная комната — <b>${this._esc(topRoom.area_name || topRoom.area_id)}</b> (${topRoom.n} событий).`);
+
+    // 4) peak hour
+    const peakIns = (insights || []).find(i => i.type === "peak_hour");
+    if (peakIns) parts.push(`Пик активности — в <b>${peakIns.params.hour}:00</b> (${peakIns.params.n} событий).`);
+
+    // 5) anomalies
+    const anomCount =
+      (a.rapid_toggle?.length || 0) + (a.duplicate_automations?.length || 0) +
+      (a.user_cancelled?.length || 0) + (a.manual_after_auto?.length || 0);
+    if (anomCount === 0) {
+      parts.push(`Аномалий не обнаружено — поведение устройств стабильное.`);
+    } else {
+      const details = [];
+      if (a.rapid_toggle?.length) details.push(`${a.rapid_toggle.length} флапающих устройств`);
+      if (a.duplicate_automations?.length) details.push(`${a.duplicate_automations.length} дублей автоматизаций`);
+      if (a.user_cancelled?.length) details.push(`${a.user_cancelled.length} отменённых действий`);
+      if (a.manual_after_auto?.length) details.push(`${a.manual_after_auto.length} ручных правок после авто`);
+      parts.push(`Замечено: <b>${details.join(", ")}</b>. Подробности на вкладке «Аномалии».`);
+    }
+
+    return parts.map(p => `<div class="ai-line">${p}</div>`).join("");
+  }
+
+  _scoreCard(label, value, status, icon, sev) {
+    const isPct = typeof value === "number";
+    const big = isPct ? `${value}<small>/100</small>` : (value != null ? value : status);
+    return `<div class="score score--${sev || 'info'}">
+      <div class="score__head">
+        <span class="score__icon">${icon}</span>
+        <span class="score__label">${label}</span>
+      </div>
+      <div class="score__big">${big}</div>
+      <div class="score__status">${this._esc(status || "")}</div>
+      ${isPct ? `<div class="score__bar"><div class="score__bar-fill" style="width:${value}%"></div></div>` : ""}
+    </div>`;
+  }
+
+  _scoreLabel(v) {
+    if (v >= 90) return "Отлично";
+    if (v >= 70) return "Хорошо";
+    if (v >= 50) return "Норма";
+    if (v >= 30) return "Слабо";
+    return "Плохо";
+  }
+
+  _humanTime(mins) {
+    if (mins < 1) return "только что";
+    if (mins < 60) return `${mins} мин назад`;
+    const h = Math.floor(mins / 60);
+    if (h < 24) return `${h} ч назад`;
+    return `${Math.floor(h / 24)} дн назад`;
+  }
+  _humanDays(d) {
+    if (d <= 1) return "24 часа";
+    if (d === 7) return "7 дней";
+    if (d === 14) return "14 дней";
+    if (d === 30) return "30 дней";
+    if (d === 90) return "90 дней";
+    if (d === 365) return "год";
+    return `${d} дн`;
+  }
+  _esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   _renderPeople(root) {
