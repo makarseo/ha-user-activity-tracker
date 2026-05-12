@@ -1,6 +1,7 @@
 """REST API endpoints."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
@@ -57,11 +58,12 @@ class StatsView(_BaseView):
         start_today = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
         start_week = int((now - timedelta(days=7)).timestamp())
         start_month = int((now - timedelta(days=30)).timestamp())
-        return self.json({
-            "today": await self.store.async_count_since(start_today, trigger_type=tt),
-            "week": await self.store.async_count_since(start_week, trigger_type=tt),
-            "month": await self.store.async_count_since(start_month, trigger_type=tt),
-        })
+        today, week, month = await asyncio.gather(
+            self.store.async_count_since(start_today, trigger_type=tt),
+            self.store.async_count_since(start_week, trigger_type=tt),
+            self.store.async_count_since(start_month, trigger_type=tt),
+        )
+        return self.json({"today": today, "week": week, "month": month})
 
 
 class CompareView(_BaseView):
@@ -240,41 +242,46 @@ class RoomsView(_BaseView):
     async def get(self, request: web.Request) -> web.Response:
         since = _since(request, default_days=14)
         areas = await self.store.async_breakdown(since, "area_id", 50)
-        # for each area, fetch top 5 entities and user/auto split
-        result = []
-        for area in areas:
+        if not areas:
+            return self.json([])
+
+        async def fetch_area(area):
             area_id = area.get("key")
             if not area_id:
-                continue
-            ents = await self.store.hass.async_add_executor_job(
-                self.store._query,
-                """
-                SELECT entity_id, MAX(friendly_name) AS friendly_name, COUNT(*) AS n
-                FROM events
-                WHERE ts >= ? AND area_id = ?
-                GROUP BY entity_id ORDER BY n DESC LIMIT 5
-                """,
-                (since, area_id),
+                return None
+            ents, split = await asyncio.gather(
+                self.store.hass.async_add_executor_job(
+                    self.store._query,
+                    """
+                    SELECT entity_id, MAX(friendly_name) AS friendly_name, COUNT(*) AS n
+                    FROM events
+                    WHERE ts >= ? AND area_id = ?
+                    GROUP BY entity_id ORDER BY n DESC LIMIT 5
+                    """,
+                    (since, area_id),
+                ),
+                self.store.hass.async_add_executor_job(
+                    self.store._query,
+                    """
+                    SELECT
+                        SUM(CASE WHEN trigger_type='user' THEN 1 ELSE 0 END) AS n_user,
+                        SUM(CASE WHEN trigger_type IN ('automation','script') THEN 1 ELSE 0 END) AS n_auto
+                    FROM events WHERE ts >= ? AND area_id = ?
+                    """,
+                    (since, area_id),
+                ),
             )
-            split = await self.store.hass.async_add_executor_job(
-                self.store._query,
-                """
-                SELECT
-                    SUM(CASE WHEN trigger_type='user' THEN 1 ELSE 0 END) AS n_user,
-                    SUM(CASE WHEN trigger_type IN ('automation','script') THEN 1 ELSE 0 END) AS n_auto
-                FROM events WHERE ts >= ? AND area_id = ?
-                """,
-                (since, area_id),
-            )
-            result.append({
+            return {
                 "area_id": area_id,
                 "area_name": area.get("area_name") or area_id,
                 "n": area.get("n", 0),
                 "n_user": split[0]["n_user"] if split else 0,
                 "n_auto": split[0]["n_auto"] if split else 0,
                 "top_entities": ents,
-            })
-        return self.json(result)
+            }
+
+        results = await asyncio.gather(*(fetch_area(a) for a in areas))
+        return self.json([r for r in results if r])
 
 
 class InsightsView(_BaseView):
@@ -285,89 +292,58 @@ class InsightsView(_BaseView):
     async def get(self, request: web.Request) -> web.Response:
         since = _since(request, default_days=14)
         days = max(1, int((datetime.now(tz=timezone.utc).timestamp() - since) / 86400))
-        insights: list[dict] = []
 
-        summary = await self.store.async_summary(since)
+        # Parallel — was 8 sequential awaits.
+        (summary, top_ent, peak, rapid, cancelled, dups, rooms, users) = await asyncio.gather(
+            self.store.async_summary(since),
+            self.store.async_breakdown(since, "entity_id", 1),
+            self.store.async_peak_hour(since),
+            self.store.async_rapid_toggle(since),
+            self.store.async_user_cancelled(since),
+            self.store.async_duplicate_automations(since),
+            self.store.async_breakdown(since, "area_id", 1),
+            self.store.async_breakdown(since, "user_id", 1),
+        )
         total = summary.get("total", 0) or 0
         n_user = summary.get("n_user", 0) or 0
         n_auto = summary.get("n_auto", 0) or 0
+        insights: list[dict] = []
 
-        # 1. Most active entity
-        top_ent = await self.store.async_breakdown(since, "entity_id", 1)
         if top_ent:
             insights.append({
-                "type": "most_active",
-                "severity": "info",
-                "key": "insight_most_active",
+                "type": "most_active", "severity": "info", "key": "insight_most_active",
                 "params": {
                     "entity_id": top_ent[0]["key"],
                     "name": top_ent[0].get("friendly_name") or top_ent[0]["key"],
-                    "n": top_ent[0]["n"],
-                    "days": days,
+                    "n": top_ent[0]["n"], "days": days,
                 },
             })
-
-        # 2. Automation ratio
         if total > 0:
             ratio = round(n_auto / total * 100)
             sev = "good" if 50 <= ratio <= 85 else ("warning" if ratio > 95 else "info")
             insights.append({
-                "type": "automation_ratio",
-                "severity": sev,
-                "key": "insight_automation_ratio",
+                "type": "automation_ratio", "severity": sev, "key": "insight_automation_ratio",
                 "params": {"ratio": ratio, "n_auto": n_auto, "total": total},
             })
-
-        # 3. Peak hour
-        peak = await self.store.async_peak_hour(since)
         if peak and peak.get("n"):
             insights.append({
-                "type": "peak_hour",
-                "severity": "info",
-                "key": "insight_peak_hour",
+                "type": "peak_hour", "severity": "info", "key": "insight_peak_hour",
                 "params": {"hour": peak["hour"], "n": peak["n"]},
             })
-
-        # 4. Anomalies count
-        rapid = await self.store.async_rapid_toggle(since)
-        cancelled = await self.store.async_user_cancelled(since)
-        dups = await self.store.async_duplicate_automations(since)
         if rapid or cancelled or dups:
             insights.append({
-                "type": "anomalies",
-                "severity": "warning",
-                "key": "insight_anomalies",
-                "params": {
-                    "rapid": len(rapid),
-                    "cancelled": len(cancelled),
-                    "dups": len(dups),
-                },
+                "type": "anomalies", "severity": "warning", "key": "insight_anomalies",
+                "params": {"rapid": len(rapid), "cancelled": len(cancelled), "dups": len(dups)},
             })
-
-        # 5. Most active room
-        rooms = await self.store.async_breakdown(since, "area_id", 1)
         if rooms:
             insights.append({
-                "type": "top_room",
-                "severity": "info",
-                "key": "insight_top_room",
-                "params": {
-                    "area_name": rooms[0].get("area_name") or rooms[0]["key"],
-                    "n": rooms[0]["n"],
-                },
+                "type": "top_room", "severity": "info", "key": "insight_top_room",
+                "params": {"area_name": rooms[0].get("area_name") or rooms[0]["key"], "n": rooms[0]["n"]},
             })
-
-        # 6. Most active user
-        users = await self.store.async_breakdown(since, "user_id", 1)
         if users:
             insights.append({
-                "type": "top_user",
-                "severity": "info",
-                "key": "insight_top_user",
-                "params": {
-                    "user_name": users[0].get("user_name") or users[0]["key"],
-                    "n": users[0]["n"],
-                },
+                "type": "top_user", "severity": "info", "key": "insight_top_user",
+                "params": {"user_name": users[0].get("user_name") or users[0]["key"], "n": users[0]["n"]},
             })
 
         return self.json(insights)
@@ -379,21 +355,32 @@ class AnomaliesView(_BaseView):
 
     async def get(self, request: web.Request) -> web.Response:
         since = _since(request, default_days=14)
-        # threshold for "dead": automations not seen in last `dead_days` days
         try:
             dead_days = int(request.query.get("dead_days", "7"))
         except ValueError:
             dead_days = 7
         dead_threshold = int((datetime.now(tz=timezone.utc) - timedelta(days=dead_days)).timestamp())
+
+        # Parallel — same reason as HealthView. Each store.* runs in executor.
+        (rapid, cancelled, dups, night, dead, low, manual_after, routines) = await asyncio.gather(
+            self.store.async_rapid_toggle(since),
+            self.store.async_user_cancelled(since),
+            self.store.async_duplicate_automations(since),
+            self.store.async_night_activity(since),
+            self.store.async_dead_automations(dead_threshold),
+            self.store.async_low_impact_automations(since),
+            self.store.async_manual_after_auto(since),
+            self.store.async_routine_candidates(since),
+        )
         return self.json({
-            "rapid_toggle": await self.store.async_rapid_toggle(since),
-            "user_cancelled": await self.store.async_user_cancelled(since),
-            "duplicate_automations": await self.store.async_duplicate_automations(since),
-            "night_activity": await self.store.async_night_activity(since),
-            "dead_automations": await self.store.async_dead_automations(dead_threshold),
-            "low_impact_automations": await self.store.async_low_impact_automations(since),
-            "manual_after_auto": await self.store.async_manual_after_auto(since),
-            "routine_candidates": await self.store.async_routine_candidates(since),
+            "rapid_toggle": rapid,
+            "user_cancelled": cancelled,
+            "duplicate_automations": dups,
+            "night_activity": night,
+            "dead_automations": dead,
+            "low_impact_automations": low,
+            "manual_after_auto": manual_after,
+            "routine_candidates": routines,
         })
 
 
@@ -436,13 +423,35 @@ class HealthView(_BaseView):
 
     async def get(self, request: web.Request) -> web.Response:
         now = _now_utc()
-        # Scope of "lookback" for active/quiet/empty + active devices count
         last_30m = int((now - timedelta(minutes=30)).timestamp())
         last_1h = int((now - timedelta(hours=1)).timestamp())
         last_24h = int((now - timedelta(days=1)).timestamp())
+        yesterday_start = int((now - timedelta(days=2)).timestamp())
+        yesterday_end = last_24h
+        dead_threshold = int((now - timedelta(days=7)).timestamp())
 
-        events_30m = await self.store.async_count_since(last_30m)
-        active_devices_1h = await self.store.async_active_devices_recent(last_1h)
+        # Run ALL sub-queries in parallel — was sequential, took 20+ seconds.
+        # Each store.* method dispatches to executor, so asyncio.gather actually
+        # runs them on different threads (executor is a ThreadPoolExecutor).
+        (events_30m, active_devices_1h, last_manual, last_auto, summary_24h,
+         rapid, cancelled, manual_after, dups, dead, low, routines, night,
+         prev_count, peak) = await asyncio.gather(
+            self.store.async_count_since(last_30m),
+            self.store.async_active_devices_recent(last_1h),
+            self.store.async_last_event("user"),
+            self.store.async_last_event("automation"),
+            self.store.async_summary(last_24h),
+            self.store.async_rapid_toggle(last_24h),
+            self.store.async_user_cancelled(last_24h),
+            self.store.async_manual_after_auto(last_24h),
+            self.store.async_duplicate_automations(last_24h),
+            self.store.async_dead_automations(dead_threshold),
+            self.store.async_low_impact_automations(last_24h),
+            self.store.async_routine_candidates(last_24h),
+            self.store.async_night_activity(last_24h),
+            self.store.async_count_since(yesterday_start, yesterday_end),
+            self.store.async_peak_hour(last_24h),
+        )
 
         # House status
         if events_30m == 0:
@@ -452,47 +461,25 @@ class HealthView(_BaseView):
         else:
             status = "active"
 
-        last_manual = await self.store.async_last_event("user")
-        last_auto = await self.store.async_last_event("automation")
-
-        summary_24h = await self.store.async_summary(last_24h)
         total_24h = summary_24h.get("total", 0) or 0
         n_user_24h = summary_24h.get("n_user", 0) or 0
         n_auto_24h = summary_24h.get("n_auto", 0) or 0
         ratio = round((n_auto_24h / total_24h) * 100) if total_24h else 0
 
-        # Anomaly counts
-        rapid = await self.store.async_rapid_toggle(last_24h)
-        cancelled = await self.store.async_user_cancelled(last_24h)
-        manual_after = await self.store.async_manual_after_auto(last_24h)
-        dups = await self.store.async_duplicate_automations(last_24h)
-        dead = await self.store.async_dead_automations(
-            int((now - timedelta(days=7)).timestamp()))
-        low = await self.store.async_low_impact_automations(last_24h)
-        routines = await self.store.async_routine_candidates(last_24h)
-        night = await self.store.async_night_activity(last_24h)
-
         critical = len(rapid) + len(dups)
         warning = len(cancelled) + len(manual_after) + len(night)
         info = len(routines) + len(low) + len(dead)
 
-        # Scores 0-100
         unique_entities = summary_24h.get("unique_entities", 0) or 1
-        # Automation health: 100 - (cancelled per total auto * 100)
         if n_auto_24h > 0:
             auto_health = max(0, 100 - round(len(cancelled) / n_auto_24h * 100 * 3) - len(dups) * 5)
         else:
             auto_health = 50
         auto_health = max(0, min(100, auto_health))
 
-        # Device stability: 100 - rapid_toggle / unique_entities
         device_stability = max(0, 100 - round(len(rapid) / max(1, unique_entities) * 100 * 5))
         device_stability = max(0, min(100, device_stability))
 
-        # Activity vs prev (comparing today's count vs yesterday)
-        yesterday_start = int((now - timedelta(days=2)).timestamp())
-        yesterday_end = int((now - timedelta(days=1)).timestamp())
-        prev_count = await self.store.async_count_since(yesterday_start, yesterday_end)
         if prev_count == 0:
             activity_trend = "normal"
         else:
@@ -503,9 +490,6 @@ class HealthView(_BaseView):
                 activity_trend = "low"
             else:
                 activity_trend = "normal"
-
-        # Peak hour
-        peak = await self.store.async_peak_hour(last_24h)
 
         # AI-style summary text (server-side, language-agnostic — i18n done client-side)
         summary_key = "summary_active" if total_24h > 10 else "summary_quiet"

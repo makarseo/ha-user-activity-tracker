@@ -44,6 +44,10 @@ INDEX_MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_events_trigger_type  ON events(trigger_type)",
     "CREATE INDEX IF NOT EXISTS idx_events_trigger_eid   ON events(trigger_entity_id)",
     "CREATE INDEX IF NOT EXISTS idx_events_area          ON events(area_id)",
+    # Composite indices to dramatically speed up the anomaly self-joins
+    "CREATE INDEX IF NOT EXISTS idx_events_entity_ts     ON events(entity_id, ts)",
+    "CREATE INDEX IF NOT EXISTS idx_events_trig_ts       ON events(trigger_type, ts)",
+    "CREATE INDEX IF NOT EXISTS idx_events_trig_eid_ts   ON events(trigger_entity_id, ts)",
 ]
 
 
